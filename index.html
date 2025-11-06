@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Smart Appliance Dashboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+      /* Custom styles for better aesthetics */
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f3f4f6;
+      }
+      .card {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+      }
+    </style>
+  </head>
+  <body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+      <header class="text-center mb-10 p-4 bg-white rounded-xl card">
+        <h1 class="text-4xl font-extrabold text-blue-800">
+          Live Appliance Energy Monitor
+        </h1>
+        <p class="text-lg text-gray-600 mt-2">
+          Simulating Real-Time Data Feed (API Call Every 3 Seconds)
+        </p>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Real-Time Data Card -->
+        <div
+          class="lg:col-span-1 p-6 bg-white rounded-xl card h-full flex flex-col justify-between"
+        >
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">
+              Appliance Status
+            </h2>
+            <div class="space-y-4">
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700">Appliance:</span>
+                <span class="font-semibold text-blue-600" id="appliance-name"
+                  >Coffee Maker</span
+                >
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700"
+                  >Current Power Draw:</span
+                >
+                <span
+                  class="text-2xl font-extrabold text-green-600"
+                  id="current-watts"
+                  >0 W</span
+                >
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700"
+                  >Total Energy (Simulated):</span
+                >
+                <span
+                  class="text-2xl font-extrabold text-purple-600"
+                  id="total-kwh"
+                  >0.00 kWh</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 text-sm text-gray-500 text-center">
+            <p>
+              API Status:
+              <span id="api-status" class="font-semibold text-green-500"
+                >Ready</span
+              >
+            </p>
+            <p>Last Update: <span id="last-update">--</span></p>
+          </div>
+        </div>
+
+        <!-- Live Power Chart Card -->
+        <div class="lg:col-span-2 p-6 bg-white rounded-xl card">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">
+            Live Power Draw (Watts)
+          </h2>
+          <canvas id="powerChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Energy Usage History Card -->
+      <div class="mt-6 p-6 bg-white rounded-xl card">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">
+          Energy Usage Trend (kW/h per Update)
+        </h2>
+        <canvas id="energyChart"></canvas>
+      </div>
+    </div>
+
+    <script>
+      // --- DATA STRUCTURES ---
+      const MAX_DATA_POINTS = 30; // Max points to display in the chart
+      let powerData = {
+        labels: [],
+        watts: [],
+        kwh: [],
+        cumulativeKWh: 0,
+      };
+      let lastUpdateTimestamp = Date.now();
+      const updateIntervalMs = 3000; // API fetch interval (3 seconds)
+
+      // --- CHART INITIALIZATION ---
+
+      const powerCtx = document.getElementById("powerChart").getContext("2d");
+      const powerChart = new Chart(powerCtx, {
+        type: "line",
+        data: {
+          labels: powerData.labels,
+          datasets: [
+            {
+              label: "Power (Watts)",
+              data: powerData.watts,
+              borderColor: "rgb(59, 130, 246)", // Blue
+              backgroundColor: "rgba(59, 130, 246, 0.1)",
+              borderWidth: 2,
+              tension: 0.4,
+              pointRadius: 3,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: {
+            y: {
+              title: { display: true, text: "Watts" },
+              beginAtZero: true,
+            },
+            x: {
+              title: { display: true, text: "Time" },
+              display: true,
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            title: { display: false },
+          },
+        },
+      });
+
+      const energyCtx = document.getElementById("energyChart").getContext("2d");
+      const energyChart = new Chart(energyCtx, {
+        type: "bar",
+        data: {
+          labels: powerData.labels,
+          datasets: [
+            {
+              label: "Energy Consumption (kWh)",
+              data: powerData.kwh,
+              backgroundColor: "rgb(168, 85, 247)", // Purple
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: {
+            y: {
+              title: { display: true, text: "Energy (kWh)" },
+              beginAtZero: true,
+            },
+            x: {
+              title: { display: true, text: "Time" },
+              display: true,
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            title: { display: false },
+          },
+        },
+      });
+
+      // --- SIMULATED API FUNCTION ---
+
+      /**
+       * Simulates an API call to a smart plug, returning current power data.
+       * @returns {Promise<{watts: number, device: string, timestamp: number}>}
+       */
+      function getRealTimeSmartPlugData() {
+        // In a real scenario, this would be a fetch() call to a service like Tuya, Kasa, etc.
+        // Example: const response = await fetch('/api/get_power_data');
+
+        // --- SIMULATION LOGIC ---
+        // Simulate appliance behavior (e.g., a cycle of high, medium, low usage)
+        let timeOfDay = new Date().getHours();
+        let randomFluctuation = Math.random() * 50 - 25; // +/- 25W noise
+
+        let baseWatts;
+
+        // Simulate usage spike during "morning" and "evening" (e.g., 7-9 AM/PM)
+        if (timeOfDay >= 7 && timeOfDay <= 9) {
+          // High usage (like heating up)
+          baseWatts = 1200 + randomFluctuation;
+        } else if (timeOfDay >= 17 && timeOfDay <= 19) {
+          // Medium usage (like keeping warm)
+          baseWatts = 300 + randomFluctuation;
+        } else if (Math.random() < 0.2) {
+          // Occasional random short spike
+          baseWatts = 800 + randomFluctuation;
+        } else {
+          // Low standby power
+          baseWatts = 5 + Math.random() * 10;
+        }
+
+        // Ensure watts are not negative
+        baseWatts = Math.max(0, baseWatts);
+
+        const data = {
+          watts: Math.round(baseWatts),
+          device: "Coffee Maker (Kitchen)",
+          timestamp: Date.now(),
+        };
+        return Promise.resolve(data);
+      }
+
+      // --- DATA PROCESSING & CHART UPDATE ---
+
+      function processAndRenderData(newData) {
+        const now = new Date();
+        const timeLabel = now.toLocaleTimeString();
+
+        // 1. Calculate Energy (kWh) consumed since the last update
+        const deltaMs = newData.timestamp - lastUpdateTimestamp;
+        lastUpdateTimestamp = newData.timestamp;
+
+        // Energy (kWh) = (Power in kW) * (Time in hours)
+        // Power in kW = watts / 1000
+        // Time in hours = deltaMs / 3,600,000 (milliseconds per hour)
+        const powerInKW = newData.watts / 1000;
+        const timeInHours = deltaMs / 3600000;
+        const kwh_increment = powerInKW * timeInHours;
+
+        // 2. Update Data Arrays (for charts)
+        powerData.labels.push(timeLabel);
+        powerData.watts.push(newData.watts);
+        powerData.kwh.push(kwh_increment);
+
+        // 3. Update Cumulative Energy
+        powerData.cumulativeKWh += kwh_increment;
+
+        // 4. Manage Data History (Sliding Window)
+        if (powerData.labels.length > MAX_DATA_POINTS) {
+          powerData.labels.shift();
+          powerData.watts.shift();
+          powerData.kwh.shift();
+        }
+
+        // 5. Update Charts
+        powerChart.update();
+        energyChart.update();
+
+        // 6. Update Dashboard Stats
+        document.getElementById(
+          "current-watts"
+        ).textContent = `${newData.watts} W`;
+        document.getElementById(
+          "total-kwh"
+        ).textContent = `${powerData.cumulativeKWh.toFixed(4)} kWh`;
+        document.getElementById("appliance-name").textContent = newData.device;
+        document.getElementById("last-update").textContent = timeLabel;
+      }
+
+      // --- MAIN LOOP ---
+
+      async function fetchDataAndRender() {
+        document.getElementById("api-status").textContent = "Fetching...";
+        document
+          .getElementById("api-status")
+          .classList.remove("text-green-500");
+        document.getElementById("api-status").classList.add("text-yellow-600");
+
+        try {
+          const data = await getRealTimeSmartPlugData();
+          processAndRenderData(data);
+
+          document.getElementById("api-status").textContent = "Success";
+          document
+            .getElementById("api-status")
+            .classList.remove("text-yellow-600", "text-red-600");
+          document.getElementById("api-status").classList.add("text-green-500");
+        } catch (error) {
+          console.error("Failed to fetch smart plug data:", error);
+          document.getElementById("api-status").textContent = "ERROR";
+          document
+            .getElementById("api-status")
+            .classList.remove("text-yellow-600", "text-green-500");
+          document.getElementById("api-status").classList.add("text-red-600");
+        }
+      }
+
+      // Start the initial fetch immediately, then set the interval
+      window.onload = function () {
+        fetchDataAndRender(); // Initial data fetch
+        // Set up the interval to mimic continuous API polling
+        setInterval(fetchDataAndRender, updateIntervalMs);
+      };
+    </script>
+  </body>
+</html>
