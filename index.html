@@ -27,8 +27,9 @@
         <h1 class="text-4xl font-extrabold text-blue-800">
           Live Appliance Energy Monitor
         </h1>
+        <!-- UPDATED HEADER TEXT -->
         <p class="text-lg text-gray-600 mt-2">
-          Simulating Real-Time Data Feed (API Call Every 3 Seconds)
+          Connecting to Secure Netlify API Function
         </p>
       </header>
 
@@ -46,8 +47,9 @@
                 class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
               >
                 <span class="font-medium text-gray-700">Appliance:</span>
+                <!-- UPDATED: Default text changed -->
                 <span class="font-semibold text-blue-600" id="appliance-name"
-                  >Coffee Maker</span
+                  >--</span
                 >
               </div>
               <div
@@ -65,9 +67,8 @@
               <div
                 class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
               >
-                <span class="font-medium text-gray-700"
-                  >Total Energy (Simulated):</span
-                >
+                <!-- UPDATED: Text changed from "Simulated" -->
+                <span class="font-medium text-gray-700">Total Energy:</span>
                 <span
                   class="text-2xl font-extrabold text-purple-600"
                   id="total-kwh"
@@ -119,7 +120,6 @@
       const updateIntervalMs = 3000; // API fetch interval (3 seconds)
 
       // --- CHART INITIALIZATION ---
-
       const powerCtx = document.getElementById("powerChart").getContext("2d");
       const powerChart = new Chart(powerCtx, {
         type: "line",
@@ -192,51 +192,32 @@
         },
       });
 
-      // --- SIMULATED API FUNCTION ---
+      // --- 💥💥💥 MODIFIED SECTION 💥💥💥 ---
+      // It now calls your secure Netlify serverless function.
 
       /**
-       * Simulates an API call to a smart plug, returning current power data.
+       * Fetches smart plug data by calling our secure Netlify serverless function.
        * @returns {Promise<{watts: number, device: string, timestamp: number}>}
        */
-      function getRealTimeSmartPlugData() {
-        // In a real scenario, this would be a fetch() call to a service like Tuya, Kasa, etc.
-        // Example: const response = await fetch('/api/get_power_data');
+      async function getRealTimeSmartPlugData() {
+        // This is the standard path to your Netlify function.
+        const apiEndpoint = "/.netlify/functions/get-smart-plug-data";
 
-        // --- SIMULATION LOGIC ---
-        // Simulate appliance behavior (e.g., a cycle of high, medium, low usage)
-        let timeOfDay = new Date().getHours();
-        let randomFluctuation = Math.random() * 50 - 25; // +/- 25W noise
+        const response = await fetch(apiEndpoint);
 
-        let baseWatts;
-
-        // Simulate usage spike during "morning" and "evening" (e.g., 7-9 AM/PM)
-        if (timeOfDay >= 7 && timeOfDay <= 9) {
-          // High usage (like heating up)
-          baseWatts = 1200 + randomFluctuation;
-        } else if (timeOfDay >= 17 && timeOfDay <= 19) {
-          // Medium usage (like keeping warm)
-          baseWatts = 300 + randomFluctuation;
-        } else if (Math.random() < 0.2) {
-          // Occasional random short spike
-          baseWatts = 800 + randomFluctuation;
-        } else {
-          // Low standby power
-          baseWatts = 5 + Math.random() * 10;
+        if (!response.ok) {
+          // Show error details if the serverless function fails
+          const errorText = await response.text();
+          throw new Error(`API function failed: ${errorText}`);
         }
 
-        // Ensure watts are not negative
-        baseWatts = Math.max(0, baseWatts);
-
-        const data = {
-          watts: Math.round(baseWatts),
-          device: "Coffee Maker (Kitchen)",
-          timestamp: Date.now(),
-        };
-        return Promise.resolve(data);
+        const data = await response.json();
+        return data;
       }
+      // --- 💥💥💥 END OF MODIFIED SECTION 💥💥💥 ---
 
       // --- DATA PROCESSING & CHART UPDATE ---
-
+      // (This logic remains the same)
       function processAndRenderData(newData) {
         const now = new Date();
         const timeLabel = now.toLocaleTimeString();
@@ -245,9 +226,6 @@
         const deltaMs = newData.timestamp - lastUpdateTimestamp;
         lastUpdateTimestamp = newData.timestamp;
 
-        // Energy (kWh) = (Power in kW) * (Time in hours)
-        // Power in kW = watts / 1000
-        // Time in hours = deltaMs / 3,600,000 (milliseconds per hour)
         const powerInKW = newData.watts / 1000;
         const timeInHours = deltaMs / 3600000;
         const kwh_increment = powerInKW * timeInHours;
@@ -268,8 +246,9 @@
         }
 
         // 5. Update Charts
-        powerChart.update();
-        energyChart.update();
+        // Use 'none' for animation to make it feel faster
+        powerChart.update("none");
+        energyChart.update("none");
 
         // 6. Update Dashboard Stats
         document.getElementById(
@@ -283,7 +262,7 @@
       }
 
       // --- MAIN LOOP ---
-
+      // (This logic remains the same)
       async function fetchDataAndRender() {
         document.getElementById("api-status").textContent = "Fetching...";
         document
@@ -312,6 +291,10 @@
 
       // Start the initial fetch immediately, then set the interval
       window.onload = function () {
+        // Run updates on the charts once the page is loaded
+        powerChart.update();
+        energyChart.update();
+
         fetchDataAndRender(); // Initial data fetch
         // Set up the interval to mimic continuous API polling
         setInterval(fetchDataAndRender, updateIntervalMs);

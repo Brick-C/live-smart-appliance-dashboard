@@ -1,0 +1,8 @@
+{
+  "name": "smart-plug-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard for Tuya Smart Plug",
+  "dependencies": {
+    "@tuya/tuya-connector-nodejs": "^2.1.2"
+  }
+}
