@@ -80,7 +80,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { db } = await connectToDatabase();
+    const { client, db } = await connectToDatabase();
     const readings = db.collection("energy_readings");
 
     if (event.httpMethod === "POST") {
@@ -172,20 +172,20 @@ exports.handler = async (event, context) => {
       }),
     };
   } finally {
-    if (client) {
-      try {
-        await Promise.race([
-          client.close(),
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Close connection timeout")),
-              2000
-            )
-          ),
-        ]);
-      } catch (error) {
-        console.error("Error closing database connection:", error);
-      }
-    }
+    // if (client) {
+    //   try {
+    //     await Promise.race([
+    //       client.close(),
+    //       new Promise((_, reject) =>
+    //         setTimeout(
+    //           () => reject(new Error("Close connection timeout")),
+    //           2000
+    //         )
+    //       ),
+    //     ]);
+    //   } catch (error) {
+    //     console.error("Error closing database connection:", error);
+    //   }
+    // }
   }
 };
