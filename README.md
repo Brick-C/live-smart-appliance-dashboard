@@ -20,6 +20,8 @@ npm install @tuya/tuya-connector-nodejs
 # Install dotenv for local environment variable management
 npm install dotenv
 
+# Install mongodb for databse connection
+npm install mongodb
 
 Note: The serverless function code uses the simpler tuya-connector-sdk library, which should also be installed via a package.json file for Netlify deployment, as mentioned previously. If running locally, @tuya/tuya-connector-nodejs is the modern choice, but ensure your serverless code is consistent with the library you deploy.
 
@@ -27,15 +29,16 @@ Note: The serverless function code uses the simpler tuya-connector-sdk library, 
 
 For the application to securely connect to the Tuya Cloud API, you need to set up three environment variables.
 
-Create a file named .env in the root of your project directory.
-
-Populate the file with your credentials from the Tuya IoT Platform. Leave the values empty in the example below, but fill them in with your actual secrets.
+Create a file named .env in the root of your project directory. And populate the file with your credentials from the Tuya IoT Platform. Leave the values empty in the example below, but fill them in with your actual secrets. (All the key and values added here need to be stored in environment variables section in Netlify or other)
 ```
 TUYA_ACCESS_ID="YOUR_TUYA_ACCESS_KEY_GOES_HERE"
 TUYA_ACCESS_SECRET="YOUR_TUYA_SECRET_KEY_GOES_HERE"
 
 # The unique ID of your smart plug device obtained from the Tuya IoT Platform
 DEVICE_ID_1="YOUR_SMART_PLUG_DEVICE_ID_GOES_HERE"
+
+# Mongoodb connection string
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster1.wv7lvme.mongodb.net/?retryWrites=true&w=majority&appName=<whatever-name-you-gave-in-the-setup>
 ```
 
 ### ⚠️ Security Warning:
@@ -46,7 +49,3 @@ The .env file contains sensitive data. You MUST add it to your .gitignore file t
 node_modules
 .env
 ```
-
-## ☁️ Deployment Notes (Netlify)
-
-When deploying to Netlify, you must set these same three variables (TUYA_ACCESS_ID, TUYA_ACCESS_SECRET, and DEVICE_ID_1) in the Build & deploy > Environment variables section of your Netlify site settings. The serverless function will read them securely from there.
