@@ -46,15 +46,46 @@ async function changeDevice(deviceId) {
   const device = devices.find((d) => d.id === deviceId);
   if (device) {
     updateDeviceInfo(device);
-    // Reset charts
+
+    // Reset data structures
     powerData.labels = [];
     powerData.watts = [];
     powerData.kwh = [];
     powerData.cumulativeKWh = 0;
+    analytics.dailyData.today = [];
+    analytics.dailyData.yesterday = [];
+    historicalData.hourlyData = [];
+    historicalData.dailyData = [];
+
+    // Reset charts
     powerChart.update();
     energyChart.update();
+    patternsChart.update();
+
+    // Load historical data for the new device
+    try {
+      const response = await fetch(
+        "/.netlify/functions/store-energy-data?" +
+          new URLSearchParams({
+            deviceId: currentDeviceId,
+            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last 24 hours
+          })
+      );
+
+      if (response.ok) {
+        const historicalData = await response.json();
+        processHistoricalData(historicalData);
+      }
+    } catch (error) {
+      console.error("Failed to load historical data:", error);
+    }
+
     // Fetch new device data
     await fetchDataAndRender();
+
+    // Update analytics and historical view
+    await updateHistoricalView();
+    updateCostDisplays();
   }
 }
 
@@ -116,7 +147,7 @@ const energyChart = new Chart(energyCtx, {
       {
         label: "Energy Consumption (kWh)",
         data: powerData.kwh,
-        backgroundColor: "rgb(168, 85, 247)",
+        backgroundColor: "rgba(85, 204, 247, 1)",
         borderWidth: 1,
       },
     ],
@@ -368,12 +399,17 @@ const analytics = {
 };
 
 function updateAnalytics(newData) {
+  if (!newData) return;
+
   // Update daily data
   const now = new Date();
+  const currentRate = newData.energy?.ratePerKWh || 0.15;
+  const currentCost = (newData.watts / 1000) * currentRate;
+
   analytics.dailyData.today.push({
     time: now,
     watts: newData.watts,
-    cost: (newData.watts / 1000) * newData.energy.ratePerKWh,
+    cost: currentCost,
   });
 
   // Calculate efficiency score (0-100)
@@ -381,14 +417,60 @@ function updateAnalytics(newData) {
   document.getElementById("efficiency-score").textContent = efficiencyScore;
   updateEfficiencyLabel(efficiencyScore);
 
-  // Update cost insights
-  updateCostInsights(newData);
+  // Calculate averages
+  const dailyAvgWatts =
+    analytics.dailyData.today.reduce((sum, data) => sum + data.watts, 0) /
+    (analytics.dailyData.today.length || 1);
+  const dailyTotalCost = analytics.dailyData.today.reduce(
+    (sum, data) => sum + data.cost,
+    0
+  );
 
-  // Update usage analysis
-  updateUsageAnalysis(newData);
+  // Update efficiency score explanation
+  let efficiencyExplanation = [];
+  if (newData.watts > analytics.peakThreshold) {
+    efficiencyExplanation.push("High power usage detected");
+  }
+  if (dailyAvgWatts > 500) {
+    efficiencyExplanation.push("Above average daily consumption");
+  }
+  if (newData.watts > analytics.baselineWatts && newData.watts < 50) {
+    efficiencyExplanation.push("Standby power detected");
+  }
 
-  // Generate and update smart tips
-  updateSmartTips(newData);
+  document.getElementById("efficiency-label").title =
+    efficiencyExplanation.join(", ");
+
+  // Update cost insights with actual data
+  const dailyCostProjection = (dailyTotalCost / now.getHours()) * 24;
+  const monthlyCostProjection = dailyCostProjection * 30;
+
+  document.getElementById("cost-comparison").textContent = analytics.dailyData
+    .yesterday.length
+    ? `${(
+        (dailyTotalCost /
+          analytics.dailyData.yesterday.reduce(
+            (sum, data) => sum + data.cost,
+            0
+          ) -
+          1) *
+        100
+      ).toFixed(1)}%`
+    : "No previous data";
+
+  document.getElementById(
+    "projected-cost"
+  ).textContent = `$${monthlyCostProjection.toFixed(2)}`;
+
+  // Update usage analysis with current data
+  updateUsageAnalysis(newData, dailyAvgWatts);
+
+  // Generate and update smart tips with context
+  updateSmartTips(newData, {
+    dailyAvgWatts,
+    dailyTotalCost,
+    efficiencyScore,
+  });
 }
 
 function calculateEfficiencyScore(currentWatts) {
@@ -459,10 +541,18 @@ function updateCostInsights(newData) {
   ).textContent = `$${projectedMonthly.toFixed(2)}`;
 }
 
-function updateUsageAnalysis(newData) {
-  // Detect standby power waste
+function updateUsageAnalysis(newData, dailyAvgWatts) {
+  // Detect standby power waste with more context
   const standbyDetection = document.getElementById("standby-detection");
-  if (newData.watts > analytics.baselineWatts && newData.watts < 50) {
+  const standbyWaste =
+    newData.watts > analytics.baselineWatts && newData.watts < 50;
+  const hour = new Date().getHours();
+  const isOffPeakHours = hour >= 23 || hour <= 5;
+
+  if (standbyWaste && isOffPeakHours) {
+    standbyDetection.textContent = "Off-peak standby power waste detected";
+    standbyDetection.className = "text-sm text-red-600";
+  } else if (standbyWaste) {
     standbyDetection.textContent = "Possible standby power waste detected";
     standbyDetection.className = "text-sm text-yellow-600";
   } else if (newData.watts <= analytics.baselineWatts) {
@@ -470,52 +560,140 @@ function updateUsageAnalysis(newData) {
     standbyDetection.className = "text-sm text-green-600";
   }
 
-  // Update peak times
+  // Enhanced peak times analysis
   const peakTimes = document.getElementById("peak-times");
-  if (newData.watts > analytics.peakThreshold) {
-    peakTimes.textContent = "High usage detected - Consider rescheduling usage";
+  const isPeakUsage = newData.watts > analytics.peakThreshold;
+  const isHigherThanAverage = newData.watts > dailyAvgWatts * 1.5;
+
+  if (isPeakUsage && isOffPeakHours) {
+    peakTimes.textContent = "Critical: High usage during off-peak hours";
+    peakTimes.className = "text-sm text-red-600 font-bold";
+  } else if (isPeakUsage) {
+    peakTimes.textContent = "High usage detected - Consider rescheduling";
     peakTimes.className = "text-sm text-red-600";
+  } else if (isHigherThanAverage) {
+    peakTimes.textContent = "Above average usage detected";
+    peakTimes.className = "text-sm text-yellow-600";
   } else {
     peakTimes.textContent = "Normal usage pattern";
     peakTimes.className = "text-sm text-green-600";
   }
+
+  // Add usage pattern explanation
+  const usageExplanation = document.getElementById("usage-explanation");
+  let explanationText = "Current Status: ";
+  if (isPeakUsage) {
+    explanationText += `Peak usage (${newData.watts}W > ${analytics.peakThreshold}W threshold)`;
+  } else if (isHigherThanAverage) {
+    explanationText += `Above average (${newData.watts}W > ${Math.round(
+      dailyAvgWatts
+    )}W avg)`;
+  } else if (standbyWaste) {
+    explanationText += `Standby waste (${newData.watts}W > ${analytics.baselineWatts}W baseline)`;
+  } else {
+    explanationText += `Normal operation (${newData.watts}W)`;
+  }
+  usageExplanation.textContent = explanationText;
 }
 
-function updateSmartTips(newData) {
+function updateSmartTips(newData, context) {
   const tips = [];
   const hour = new Date().getHours();
+  const isOffPeakHours = hour >= 23 || hour <= 5;
+  const isPeakUsage = newData.watts > analytics.peakThreshold;
+  const isStandby =
+    newData.watts > analytics.baselineWatts && newData.watts < 50;
 
-  if (newData.watts > analytics.peakThreshold) {
-    tips.push(
-      "⚡ High power usage detected. Consider spreading usage throughout the day."
-    );
-  }
-
-  if (newData.watts > analytics.baselineWatts && newData.watts < 50) {
-    tips.push("💡 Standby power detected. Consider using a smart power strip.");
-  }
-
-  if (hour >= 23 || hour <= 5) {
-    tips.push(
-      "🌙 Night-time usage detected. Check for unnecessary active devices."
-    );
-  }
-
-  if (analytics.dailyData.today.length > 0) {
-    const avgWatts =
-      analytics.dailyData.today.reduce((sum, data) => sum + data.watts, 0) /
-      analytics.dailyData.today.length;
-    if (avgWatts > 500) {
+  // High Power Usage Tips
+  if (isPeakUsage) {
+    if (isOffPeakHours) {
       tips.push(
-        "📊 Today's average usage is high. Review device settings for energy savings."
+        "⚡🌙 Critical: High power usage during off-peak hours. Consider rescheduling these activities for daytime."
+      );
+    } else if (context.dailyAvgWatts > 500) {
+      tips.push(
+        "⚡📈 Consistently high power usage. Consider spreading device usage throughout the day and check for energy-intensive appliances."
+      );
+    } else {
+      tips.push(
+        "⚡ Temporary high power usage detected. This might increase your peak demand charges."
+      );
+    }
+  }
+
+  // Standby Power Tips
+  if (isStandby) {
+    if (isOffPeakHours) {
+      tips.push(
+        "💡🌙 Night-time standby power detected. Use a timer or smart plug to automatically cut power to non-essential devices."
+      );
+    } else if (context.dailyTotalCost > 5) {
+      // Adjust threshold as needed
+      tips.push(
+        "💡💰 Standby power is contributing to higher daily costs. Consider using a smart power strip to eliminate phantom loads."
+      );
+    } else {
+      tips.push(
+        "💡 Minor standby power detected. Group similar devices on a single switchable outlet."
+      );
+    }
+  }
+
+  // Efficiency Score Based Tips
+  if (context.efficiencyScore < 60) {
+    tips.push(
+      "🎯 Low efficiency score. Schedule an energy audit to identify major power drains."
+    );
+  } else if (context.efficiencyScore < 75) {
+    tips.push(
+      "🎯 Moderate efficiency. Small changes like LED bulbs and regular maintenance can help improve your score."
+    );
+  }
+
+  // Cost-based Tips
+  const projectedDailyCost = (context.dailyTotalCost / hour) * 24;
+  if (projectedDailyCost > 10) {
+    // Adjust threshold as needed
+    tips.push(
+      "💰 High daily cost projected. Consider using energy-intensive devices during off-peak rate hours."
+    );
+  }
+
+  // Time-based Tips
+  if (isOffPeakHours && newData.watts > analytics.baselineWatts * 2) {
+    tips.push(
+      "🌙 Consider using scheduler features or timers to automatically manage device power during night hours."
+    );
+  }
+
+  // Pattern-based Tips
+  if (context.dailyAvgWatts > 500 && hour > 12 && hour < 18) {
+    tips.push(
+      "📊 Peak afternoon usage detected. Shift non-essential tasks to morning or evening to reduce strain on the grid."
+    );
+  }
+
+  // Dynamic Tips Based on Previous Day Comparison
+  if (analytics.dailyData.yesterday.length > 0) {
+    const yesterdayAvg =
+      analytics.dailyData.yesterday.reduce((sum, data) => sum + data.watts, 0) /
+      analytics.dailyData.yesterday.length;
+    if (context.dailyAvgWatts > yesterdayAvg * 1.2) {
+      tips.push(
+        "� Usage is 20% higher than yesterday. Review recent changes in device usage patterns."
       );
     }
   }
 
   document.getElementById("energy-tips").innerHTML =
     tips.length > 0
-      ? tips.map((tip) => `<li>${tip}</li>`).join("")
-      : "<li>✅ No immediate energy saving opportunities identified.</li>";
+      ? tips.map((tip) => `<li class="mb-2">${tip}</li>`).join("")
+      : '<li class="text-green-600">✅ No immediate energy saving opportunities identified.</li>';
+
+  // Update tip count for UI feedback
+  document.getElementById(
+    "tip-count"
+  ).textContent = `${tips.length} Active Tips`;
 }
 
 // Historical data management with persistence
@@ -657,12 +835,75 @@ function updatePeakHoursList(hourlyAverages) {
     .join("");
 }
 
+function processHistoricalData(data) {
+  // Process historical readings
+  data.forEach((reading) => {
+    const readingDate = new Date(reading.timestamp);
+    const hour = readingDate.getHours();
+
+    // Update power data
+    powerData.labels.push(readingDate.toLocaleTimeString());
+    powerData.watts.push(reading.watts);
+    powerData.kwh.push(reading.kWh);
+    powerData.cumulativeKWh += reading.kWh;
+
+    // Update hourly data
+    if (!historicalData.hourlyData[hour]) {
+      historicalData.hourlyData[hour] = {
+        sum: reading.watts,
+        count: 1,
+        max: reading.watts,
+      };
+    } else {
+      historicalData.hourlyData[hour].sum += reading.watts;
+      historicalData.hourlyData[hour].count++;
+      historicalData.hourlyData[hour].max = Math.max(
+        historicalData.hourlyData[hour].max,
+        reading.watts
+      );
+    }
+
+    // Update today's data
+    const today = new Date();
+    if (readingDate.toDateString() === today.toDateString()) {
+      analytics.dailyData.today.push({
+        time: readingDate,
+        watts: reading.watts,
+        cost: reading.cost,
+      });
+    }
+  });
+
+  // Update all charts and displays
+  powerChart.update();
+  energyChart.update();
+  updateHistoricalCharts(data, "today");
+  updateHistoricalStats(data);
+  updatePeakHoursList(historicalData.hourlyData);
+}
+
 function updateDailySummary(newData) {
+  if (!newData || powerData.watts.length === 0) return;
+
   const timeframe = document.getElementById("history-timeframe").value;
   const peakUsage = Math.max(...powerData.watts);
   const avgUsage =
     powerData.watts.reduce((a, b) => a + b, 0) / powerData.watts.length;
 
+  // Calculate hourly cost
+  const currentPowerKW = newData.watts / 1000;
+  const hourlyCost = currentPowerKW * (newData.energy?.ratePerKWh || 0.15);
+
+  // Calculate projected daily cost based on current usage pattern
+  const hourOfDay = new Date().getHours();
+  const hoursRemaining = 24 - hourOfDay;
+  const currentDayCost = analytics.dailyData.today.reduce(
+    (sum, data) => sum + data.cost,
+    0
+  );
+  const projectedDailyCost = currentDayCost + hourlyCost * hoursRemaining;
+
+  // Update summary displays
   document.getElementById("peak-usage").textContent = `${peakUsage.toFixed(
     1
   )}W`;
@@ -671,8 +912,14 @@ function updateDailySummary(newData) {
     "total-usage"
   ).textContent = `${powerData.cumulativeKWh.toFixed(3)} kWh`;
   document.getElementById("total-cost").textContent = `$${(
-    powerData.cumulativeKWh * newData.energy.ratePerKWh
+    powerData.cumulativeKWh * (newData.energy?.ratePerKWh || 0.15)
   ).toFixed(2)}`;
+  document.getElementById("hourly-cost").textContent = `$${hourlyCost.toFixed(
+    3
+  )}/hr`;
+  document.getElementById(
+    "daily-cost"
+  ).textContent = `$${projectedDailyCost.toFixed(2)}`;
 }
 
 // Export functionality
@@ -767,7 +1014,10 @@ async function toggleDevice() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ action: "toggle" }),
+      body: JSON.stringify({
+        action: "toggle",
+        deviceId: currentDeviceId,
+      }),
     });
 
     if (!response.ok) {
