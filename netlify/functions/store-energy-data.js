@@ -4,14 +4,43 @@ const { MongoClient } = require("mongodb");
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = "energy_monitor";
 
-// MongoDB connection options with timeouts
+// Cached database connection
+let cachedClient = null;
+let cachedDb = null;
+
+// MongoDB connection options optimized for Netlify Functions
 const mongoOptions = {
-  connectTimeoutMS: 5000, // Connection timeout
-  socketTimeoutMS: 5000, // Socket timeout
-  serverSelectionTimeoutMS: 5000, // Server selection timeout
-  maxPoolSize: 10, // Maximum number of connections
+  connectTimeoutMS: 3000, // Reduced connection timeout
+  socketTimeoutMS: 3000, // Reduced socket timeout
+  serverSelectionTimeoutMS: 3000, // Reduced server selection timeout
+  maxPoolSize: 1, // Optimized for serverless
   retryWrites: true, // Enable retry on write operations
+  useUnifiedTopology: true,
+  w: 1, // Basic write concern for faster operations
 };
+
+// Helper function to get database connection
+async function connectToDatabase() {
+  if (cachedClient && cachedDb) {
+    return { client: cachedClient, db: cachedDb };
+  }
+
+  // Connect with timeout
+  const client = await Promise.race([
+    MongoClient.connect(MONGODB_URI, mongoOptions),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Database connection timeout")), 3000)
+    ),
+  ]);
+
+  const db = client.db(DB_NAME);
+
+  // Cache the connection
+  cachedClient = client;
+  cachedDb = db;
+
+  return { client, db };
+}
 
 exports.handler = async (event, context) => {
   // Add CORS headers
@@ -50,31 +79,37 @@ exports.handler = async (event, context) => {
     };
   }
 
-  let client;
   try {
-    // Connect to MongoDB with timeout
-    client = await Promise.race([
-      MongoClient.connect(MONGODB_URI, mongoOptions),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Database connection timeout")), 5000)
-      ),
-    ]);
-
-    const db = client.db(DB_NAME);
+    const { db } = await connectToDatabase();
     const readings = db.collection("energy_readings");
 
     if (event.httpMethod === "POST") {
-      // Store new reading
+      // Parse and validate data
       const data = JSON.parse(event.body);
-      const reading = {
-        deviceId: data.deviceId,
-        watts: data.watts,
-        timestamp: new Date(),
-        kWh: data.kWh,
-        cost: data.cost,
-      };
 
-      await readings.insertOne(reading);
+      // Handle both single reading and batch readings
+      const readingsToInsert = Array.isArray(data.readings)
+        ? data.readings.map((r) => ({
+            deviceId: r.deviceId,
+            watts: r.watts,
+            timestamp: new Date(r.timestamp || Date.now()),
+            kWh: r.kWh,
+            cost: r.cost,
+          }))
+        : [
+            {
+              deviceId: data.deviceId,
+              watts: data.watts,
+              timestamp: new Date(),
+              kWh: data.kWh,
+              cost: data.cost,
+            },
+          ];
+
+      // Use bulk operation for better performance
+      const result = await readings.insertMany(readingsToInsert, {
+        ordered: false,
+      });
 
       return {
         statusCode: 200,
