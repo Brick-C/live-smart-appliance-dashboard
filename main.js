@@ -153,7 +153,7 @@ async function getRealTimeSmartPlugData() {
 }
 
 // DATA PROCESSING & CHART UPDATE
-function processAndRenderData(newData) {
+async function processAndRenderData(newData) {
   const now = new Date();
   const timeLabel = now.toLocaleTimeString();
 
@@ -164,6 +164,24 @@ function processAndRenderData(newData) {
   const powerInKW = newData.watts / 1000;
   const timeInHours = deltaMs / 3600000;
   const kwh_increment = powerInKW * timeInHours;
+
+  // Store the data in our database
+  try {
+    await fetch("/.netlify/functions/store-energy-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        deviceId: currentDeviceId,
+        watts: newData.watts,
+        kWh: kwh_increment,
+        cost: newData.energy ? kwh_increment * newData.energy.ratePerKWh : 0,
+      }),
+    });
+  } catch (error) {
+    console.error("Failed to store energy data:", error);
+  }
 
   // 2. Update Data Arrays (for charts)
   powerData.labels.push(timeLabel);
@@ -249,13 +267,40 @@ window.onload = function () {
   powerChart.update();
   energyChart.update();
 
-  // Load historical data first
-  loadHistoricalData();
+  // Load available devices first
+  loadDevices().then(async () => {
+    // Load historical data from the server
+    try {
+      const response = await fetch(
+        "/.netlify/functions/store-energy-data?" +
+          new URLSearchParams({
+            deviceId: currentDeviceId,
+            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last 24 hours
+          })
+      );
 
-  // Load available devices
-  loadDevices().then(() => {
-    fetchDataAndRender(); // Initial data fetch
-    // Set up the interval to mimic continuous API polling
+      if (response.ok) {
+        const historicalData = await response.json();
+        // Process historical data
+        historicalData.forEach((reading) => {
+          powerData.labels.push(
+            new Date(reading.timestamp).toLocaleTimeString()
+          );
+          powerData.watts.push(reading.watts);
+          powerData.kwh.push(reading.kWh);
+          powerData.cumulativeKWh += reading.kWh;
+        });
+
+        // Update charts with historical data
+        powerChart.update();
+        energyChart.update();
+      }
+    } catch (error) {
+      console.error("Failed to load historical data:", error);
+    }
+
+    // Start real-time updates
+    fetchDataAndRender();
     setInterval(fetchDataAndRender, updateIntervalMs);
 
     // Save historical data every 5 minutes
@@ -587,63 +632,81 @@ function updateDailySummary(newData) {
 }
 
 // Export functionality
-function exportData(format) {
-  const timeframe = document.getElementById("history-timeframe").value;
-  const exportData = {
-    device: currentDeviceId,
-    timeframe,
-    timestamp: new Date().toISOString(),
-    readings: powerData.watts.map((watts, i) => ({
-      time: powerData.labels[i],
-      watts,
-      kWh: powerData.kwh[i],
-    })),
-    summary: {
-      peakUsage: Math.max(...powerData.watts),
-      averageUsage:
-        powerData.watts.reduce((a, b) => a + b, 0) / powerData.watts.length,
-      totalKWh: powerData.cumulativeKWh,
-      totalCost: powerData.cumulativeKWh * (newData?.energy?.ratePerKWh || 0),
-    },
-  };
+async function exportData(format) {
+  try {
+    // Fetch latest data to get current rate
+    const currentData = await getRealTimeSmartPlugData();
+    const ratePerKWh = currentData.energy?.ratePerKWh || 0.12; // Use default if not available
 
-  let dataStr;
-  let fileName;
+    const timeframe = document.getElementById("history-timeframe").value;
+    const exportData = {
+      device:
+        devices.find((d) => d.id === currentDeviceId)?.name || "Unknown Device",
+      timeframe,
+      timestamp: new Date().toISOString(),
+      readings: powerData.watts.map((watts, i) => ({
+        time: powerData.labels[i],
+        watts,
+        kWh: powerData.kwh[i],
+      })),
+      summary: {
+        peakUsage: Math.max(...powerData.watts),
+        averageUsage:
+          powerData.watts.reduce((a, b) => a + b, 0) / powerData.watts.length,
+        totalKWh: powerData.cumulativeKWh,
+        totalCost: powerData.cumulativeKWh * ratePerKWh,
+      },
+    };
 
-  if (format === "json") {
-    dataStr = JSON.stringify(exportData, null, 2);
-    fileName = `energy-data-${timeframe}-${new Date().toISOString()}.json`;
-  } else {
-    // CSV format
-    const csvRows = [
-      ["Time", "Watts", "kWh"],
-      ...exportData.readings.map((r) => [r.time, r.watts, r.kWh]),
-    ];
-    dataStr = csvRows.map((row) => row.join(",")).join("\n");
-    fileName = `energy-data-${timeframe}-${new Date().toISOString()}.csv`;
+    let dataStr;
+    let fileName;
+
+    if (format === "json") {
+      dataStr = JSON.stringify(exportData, null, 2);
+      fileName = `energy-data-${timeframe}-${new Date().toISOString()}.json`;
+    } else {
+      // CSV format
+      const csvRows = [
+        ["Time", "Watts", "kWh", "Cost"],
+        ...exportData.readings.map((r) => [
+          r.time,
+          r.watts.toFixed(2),
+          r.kWh.toFixed(4),
+          (r.kWh * ratePerKWh).toFixed(2),
+        ]),
+        [], // Empty row for summary
+        ["Summary"],
+        ["Peak Usage (W)", exportData.summary.peakUsage.toFixed(2)],
+        ["Average Usage (W)", exportData.summary.averageUsage.toFixed(2)],
+        ["Total Energy (kWh)", exportData.summary.totalKWh.toFixed(4)],
+        ["Total Cost ($)", exportData.summary.totalCost.toFixed(2)],
+      ];
+      dataStr = csvRows.map((row) => row.join(",")).join("\n");
+      fileName = `energy-data-${timeframe}-${new Date().toISOString()}.csv`;
+    }
+
+    const blob = new Blob([dataStr], {
+      type: format === "json" ? "application/json" : "text/csv",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error("Error exporting data:", error);
+    alert("Failed to export data. Please try again.");
   }
-
-  const blob = new Blob([dataStr], {
-    type: format === "json" ? "application/json" : "text/csv",
-  });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(a);
 }
 
 // Update historical view when timeframe changes
 document
   .getElementById("history-timeframe")
   .addEventListener("change", function () {
-    // Fetch and display historical data for the selected timeframe
-    const timeframe = this.value;
-    // For now, we'll just update with current data
-    updateDailySummary(powerData[powerData.length - 1]);
+    updateHistoricalView();
   });
 
 // Device control functionality

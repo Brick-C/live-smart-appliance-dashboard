@@ -113,8 +113,13 @@ exports.handler = async (event, context) => {
       throw new Error("Tuya API request failed");
     }
 
+    // Check if device is turned on
+    const switchStatus = response.result.find((x) => x.code === "switch_1");
+    const isDeviceOn = switchStatus ? switchStatus.value : false;
+
+    // Only get power if device is on
     const power = response.result.find((x) => x.code === "cur_power");
-    const watts = power ? power.value / 10 : 0;
+    const watts = isDeviceOn && power ? power.value / 10 : 0;
 
     // Calculate costs (assuming average electricity rate of $0.12 per kWh)
     const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 0.12; // Get from env or use default
