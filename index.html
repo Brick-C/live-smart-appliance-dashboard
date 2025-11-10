@@ -355,7 +355,11 @@
         document.getElementById(
           "total-kwh"
         ).textContent = `${powerData.cumulativeKWh.toFixed(4)} kWh`;
-        document.getElementById("appliance-name").textContent = newData.device;
+        // Update device location if device info is available
+        if (newData.device) {
+          document.getElementById("device-location").textContent =
+            newData.device.location;
+        }
         document.getElementById("last-update").textContent = timeLabel;
 
         // Update cost information

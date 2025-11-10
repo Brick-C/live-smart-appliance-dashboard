@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Dashboard for Tuya Smart Plug",
   "dependencies": {
-    "@tuya/tuya-connector-nodejs": "^2.1.2"
+    "@tuya/tuya-connector-nodejs": "^2.1.2",
+    "dotenv": "^17.2.3"
   }
 }

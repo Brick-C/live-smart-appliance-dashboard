@@ -1,17 +1,22 @@
 const { TuyaContext } = require("@tuya/tuya-connector-nodejs");
 
+// Load environment variables in development
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
+
 // Define available devices
 const DEVICES = [
   {
     id: process.env.DEVICE_ID_1,
     name: "Coffee Maker",
-    location: "Study Room",
+    location: "Smart Plug",
     type: "Smart Plug",
   },
   {
     id: process.env.DEVICE_ID_2 || "device_id_2",
     name: "Computer",
-    location: "Living Room",
+    location: "Smart Plug",
     type: "Smart Plug",
   },
 ];
