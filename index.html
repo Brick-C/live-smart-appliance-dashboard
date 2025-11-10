@@ -4,12 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Live Smart Appliance Dashboard</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Chart.js for visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-      /* Custom styles for better aesthetics */
       body {
         font-family: "Inter", sans-serif;
         background-color: #f3f4f6;
@@ -46,11 +43,34 @@
               <div
                 class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
               >
-                <span class="font-medium text-gray-700">Appliance:</span>
-                <!-- UPDATED: Default text changed -->
-                <span class="font-semibold text-blue-600" id="appliance-name"
+                <span class="font-medium text-gray-700">Device:</span>
+                <select
+                  id="device-selector"
+                  class="form-select rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  onchange="changeDevice(this.value)"
+                >
+                  <option value="">Loading devices...</option>
+                </select>
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700">Location:</span>
+                <span class="font-semibold text-blue-600" id="device-location"
                   >--</span
                 >
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700">Device Control:</span>
+                <button
+                  id="toggle-button"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  onclick="toggleDevice()"
+                >
+                  Turn OFF
+                </button>
               </div>
               <div
                 class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
@@ -67,12 +87,37 @@
               <div
                 class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
               >
-                <!-- UPDATED: Text changed from "Simulated" -->
                 <span class="font-medium text-gray-700">Total Energy:</span>
                 <span
                   class="text-2xl font-extrabold text-purple-600"
                   id="total-kwh"
                   >0.00 kWh</span
+                >
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700">Current Rate:</span>
+                <span class="text-xl font-bold text-gray-800" id="rate-per-kwh"
+                  >$0.00/kWh</span
+                >
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700">Hourly Cost:</span>
+                <span class="text-xl font-bold text-orange-600" id="hourly-cost"
+                  >$0.00/hr</span
+                >
+              </div>
+              <div
+                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+              >
+                <span class="font-medium text-gray-700">Projected Daily:</span>
+                <span
+                  class="text-2xl font-extrabold text-red-600"
+                  id="daily-cost"
+                  >$0.00</span
                 >
               </div>
             </div>
@@ -108,7 +153,63 @@
     </div>
 
     <script>
-      // --- DATA STRUCTURES ---
+      // Device management
+      let currentDeviceId = null;
+      let devices = [];
+
+      async function loadDevices() {
+        try {
+          const response = await fetch(
+            "/.netlify/functions/get-smart-plug-data?action=list"
+          );
+          if (!response.ok) throw new Error("Failed to load devices");
+
+          devices = await response.json();
+          const selector = document.getElementById("device-selector");
+          selector.innerHTML = devices
+            .map(
+              (d) => `<option value="${d.id}">${d.name} (${d.type})</option>`
+            )
+            .join("");
+
+          // Select first device by default
+          if (devices.length > 0) {
+            currentDeviceId = devices[0].id;
+            selector.value = currentDeviceId;
+            updateDeviceInfo(devices[0]);
+          }
+        } catch (error) {
+          console.error("Error loading devices:", error);
+          document.getElementById("device-selector").innerHTML =
+            '<option value="">Error loading devices</option>';
+        }
+      }
+
+      function updateDeviceInfo(device) {
+        document.getElementById("device-location").textContent =
+          device.location;
+        document.getElementById("appliance-name").textContent = device.name;
+      }
+
+      async function changeDevice(deviceId) {
+        if (deviceId === currentDeviceId) return;
+
+        currentDeviceId = deviceId;
+        const device = devices.find((d) => d.id === deviceId);
+        if (device) {
+          updateDeviceInfo(device);
+          // Reset charts
+          powerData.labels = [];
+          powerData.watts = [];
+          powerData.kwh = [];
+          powerData.cumulativeKWh = 0;
+          powerChart.update();
+          energyChart.update();
+          // Fetch new device data
+          await fetchDataAndRender();
+        }
+      }
+
       const MAX_DATA_POINTS = 30; // Max points to display in the chart
       let powerData = {
         labels: [],
@@ -167,7 +268,7 @@
             {
               label: "Energy Consumption (kWh)",
               data: powerData.kwh,
-              backgroundColor: "rgb(168, 85, 247)", // Purple
+              backgroundColor: "rgb(168, 85, 247)",
               borderWidth: 1,
             },
           ],
@@ -192,16 +293,15 @@
         },
       });
 
-      // --- 💥💥💥 MODIFIED SECTION 💥💥💥 ---
-      // It now calls your secure Netlify serverless function.
-
       /**
        * Fetches smart plug data by calling our secure Netlify serverless function.
        * @returns {Promise<{watts: number, device: string, timestamp: number}>}
        */
       async function getRealTimeSmartPlugData() {
-        // This is the standard path to your Netlify function.
-        const apiEndpoint = "/.netlify/functions/get-smart-plug-data";
+        // This is the standard path to Netlify function.
+        const apiEndpoint = `/.netlify/functions/get-smart-plug-data${
+          currentDeviceId ? `?deviceId=${currentDeviceId}` : ""
+        }`;
 
         const response = await fetch(apiEndpoint);
 
@@ -214,10 +314,8 @@
         const data = await response.json();
         return data;
       }
-      // --- 💥💥💥 END OF MODIFIED SECTION 💥💥💥 ---
 
-      // --- DATA PROCESSING & CHART UPDATE ---
-      // (This logic remains the same)
+      // DATA PROCESSING & CHART UPDATE
       function processAndRenderData(newData) {
         const now = new Date();
         const timeLabel = now.toLocaleTimeString();
@@ -259,10 +357,22 @@
         ).textContent = `${powerData.cumulativeKWh.toFixed(4)} kWh`;
         document.getElementById("appliance-name").textContent = newData.device;
         document.getElementById("last-update").textContent = timeLabel;
+
+        // Update cost information
+        if (newData.energy) {
+          document.getElementById(
+            "rate-per-kwh"
+          ).textContent = `$${newData.energy.ratePerKWh.toFixed(2)}/kWh`;
+          document.getElementById(
+            "hourly-cost"
+          ).textContent = `$${newData.energy.hourlyCost.toFixed(3)}/hr`;
+          document.getElementById(
+            "daily-cost"
+          ).textContent = `$${newData.energy.projectedDailyCost.toFixed(2)}`;
+        }
       }
 
-      // --- MAIN LOOP ---
-      // (This logic remains the same)
+      //MAIN LOOP
       async function fetchDataAndRender() {
         document.getElementById("api-status").textContent = "Fetching...";
         document
@@ -295,10 +405,52 @@
         powerChart.update();
         energyChart.update();
 
-        fetchDataAndRender(); // Initial data fetch
-        // Set up the interval to mimic continuous API polling
-        setInterval(fetchDataAndRender, updateIntervalMs);
+        // Load available devices first
+        loadDevices().then(() => {
+          fetchDataAndRender(); // Initial data fetch
+          // Set up the interval to mimic continuous API polling
+          setInterval(fetchDataAndRender, updateIntervalMs);
+        });
       };
+
+      // Device control functionality
+      let isDeviceOn = true; // Track device state
+
+      async function toggleDevice() {
+        const button = document.getElementById("toggle-button");
+        button.disabled = true;
+        button.classList.add("opacity-50");
+
+        try {
+          const response = await fetch(
+            "/.netlify/functions/get-smart-plug-data",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ action: "toggle" }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to toggle device");
+          }
+
+          // Update button state
+          isDeviceOn = !isDeviceOn;
+          button.textContent = isDeviceOn ? "Turn OFF" : "Turn ON";
+
+          // Fetch updated status
+          await fetchDataAndRender();
+        } catch (error) {
+          console.error("Error toggling device:", error);
+          alert("Failed to toggle device. Please try again.");
+        } finally {
+          button.disabled = false;
+          button.classList.remove("opacity-50");
+        }
+      }
     </script>
   </body>
 </html>

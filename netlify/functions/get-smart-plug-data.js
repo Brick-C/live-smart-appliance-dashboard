@@ -1,40 +1,61 @@
-/**
- * This is your Netlify Serverless Function.
- * It runs on a server, NOT in the user's browser.
- * This is where you securely use your API keys.
- */
-
-// In a real project, you would install a Tuya library:
 const { TuyaContext } = require("@tuya/tuya-connector-nodejs");
 
-// --- SIMULATION LOGIC (MOVED FROM index.html) ---
-// This is just a placeholder. Replace this with your real Tuya API call.
-// function getSimulatedData() {
-//   let timeOfDay = new Date().getHours();
-//   let randomFluctuation = Math.random() * 50 - 25;
-//   let baseWatts;
-
-//   if (timeOfDay >= 7 && timeOfDay <= 9) {
-//     baseWatts = 1200 + randomFluctuation;
-//   } else if (timeOfDay >= 17 && timeOfDay <= 19) {
-//     baseWatts = 300 + randomFluctuation;
-//   } else if (Math.random() < 0.2) {
-//     baseWatts = 800 + randomFluctuation;
-//   } else {
-//     baseWatts = 5 + Math.random() * 10;
-//   }
-
-//   baseWatts = Math.max(0, baseWatts);
-
-//   return {
-//     watts: Math.round(baseWatts),
-//     device: "Coffee Maker (Tuya API)", // Updated device name
-//     timestamp: Date.now(),
-//   };
-// }
-// // --- END SIMULATION LOGIC ---
+// Define available devices
+const DEVICES = [
+  {
+    id: process.env.DEVICE_ID_1,
+    name: "Coffee Maker",
+    location: "Study Room",
+    type: "Smart Plug",
+  },
+  {
+    id: process.env.DEVICE_ID_2 || "device_id_2",
+    name: "Computer",
+    location: "Living Room",
+    type: "Smart Plug",
+  },
+];
 
 exports.handler = async (event, context) => {
+  // Check if this is a control command
+  if (event.httpMethod === "POST") {
+    const command = JSON.parse(event.body);
+    if (command.action !== "toggle") {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Invalid action" }),
+      };
+    }
+  }
+
+  // In the try block, before getting status
+  if (event.httpMethod === "POST") {
+    const command = JSON.parse(event.body);
+    // Get current status first
+    const statusResponse = await tuya.request({
+      method: "GET",
+      path: `/v1.0/devices/${deviceId}/status`,
+    });
+
+    const currentState = statusResponse.result.find(
+      (x) => x.code === "switch_1"
+    )?.value;
+    const newState = !currentState; // Toggle the state
+
+    await tuya.request({
+      method: "POST",
+      path: `/v1.0/devices/${deviceId}/commands`,
+      body: {
+        commands: [
+          {
+            code: "switch_1",
+            value: newState,
+          },
+        ],
+      },
+    });
+  }
+
   const ACCESS_ID = process.env.TUYA_ACCESS_ID;
   const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 
@@ -52,7 +73,32 @@ exports.handler = async (event, context) => {
   });
 
   try {
-    const deviceId = "bfb4193c3c41952bd25rju"; // your device ID
+    // Handle list devices request
+    if (
+      event.httpMethod === "GET" &&
+      event.queryStringParameters?.action === "list"
+    ) {
+      return {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          DEVICES.map((d) => ({
+            id: d.id,
+            name: d.name,
+            location: d.location,
+            type: d.type,
+          }))
+        ),
+      };
+    }
+
+    // Get device ID from query parameters or use default
+    const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
+    const device = DEVICES.find((d) => d.id === deviceId) || DEVICES[0];
+
     const response = await tuya.request({
       method: "GET",
       path: `/v1.0/devices/${deviceId}/status`,
@@ -65,6 +111,12 @@ exports.handler = async (event, context) => {
     const power = response.result.find((x) => x.code === "cur_power");
     const watts = power ? power.value / 10 : 0;
 
+    // Calculate costs (assuming average electricity rate of $0.12 per kWh)
+    const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 0.12; // Get from env or use default
+    const kW = watts / 1000;
+    const hourlyRate = kW * RATE_PER_KWH;
+    const dailyCost = hourlyRate * 24; // Projected daily cost at current rate
+
     return {
       statusCode: 200,
       headers: {
@@ -73,8 +125,19 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify({
         watts,
-        device: "Smart Plug",
+        device: {
+          id: device.id,
+          name: device.name,
+          location: device.location,
+          type: device.type,
+        },
         timestamp: Date.now(),
+        energy: {
+          kW,
+          ratePerKWh: RATE_PER_KWH,
+          hourlyCost: hourlyRate,
+          projectedDailyCost: dailyCost,
+        },
       }),
     };
   } catch (error) {
