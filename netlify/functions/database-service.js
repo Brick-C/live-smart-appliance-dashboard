@@ -161,6 +161,46 @@ class DatabaseService {
       ])
       .toArray();
   }
+
+  // Settings management
+  async getElectricityRate(deviceId) {
+    await this.connect();
+    const settings = this.db.collection("device_settings");
+
+    const result = await settings.findOne({
+      deviceId,
+      setting: "electricityRate",
+    });
+
+    return result ? result.value : 0.15; // Default rate if not set
+  }
+
+  async setElectricityRate(deviceId, rate) {
+    await this.connect();
+    const settings = this.db.collection("device_settings");
+
+    // Using upsert to create if doesn't exist or update if exists
+    return await settings.updateOne(
+      {
+        deviceId,
+        setting: "electricityRate",
+      },
+      {
+        $set: {
+          value: rate,
+          updatedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  }
+
+  async getDeviceSettings(deviceId) {
+    await this.connect();
+    const settings = this.db.collection("device_settings");
+
+    return await settings.find({ deviceId }).toArray();
+  }
 }
 
 module.exports = new DatabaseService();
