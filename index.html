@@ -323,12 +323,8 @@
       }
 
       function updateDeviceInfo(device) {
-        if (device && device.location) {
-          const locationElement = document.getElementById("device-location");
-          if (locationElement) {
-            locationElement.textContent = device.location;
-          }
-        }
+        // Device info handling without location
+        // This function can be extended with other device info in the future
       }
 
       async function changeDevice(deviceId) {
@@ -487,19 +483,23 @@
         powerChart.update("none");
         energyChart.update("none");
 
-        // 6. Update Dashboard Stats
-        document.getElementById(
-          "current-watts"
-        ).textContent = `${newData.watts} W`;
-        document.getElementById(
-          "total-kwh"
-        ).textContent = `${powerData.cumulativeKWh.toFixed(4)} kWh`;
-        // Update device location if device info is available
-        if (newData.device) {
-          document.getElementById("device-location").textContent =
-            newData.device.location;
+        // Update dashboard stats with null checks
+        const currentWattsElement = document.getElementById("current-watts");
+        if (currentWattsElement) {
+          currentWattsElement.textContent = `${newData.watts} W`;
         }
-        document.getElementById("last-update").textContent = timeLabel;
+
+        const totalKwhElement = document.getElementById("total-kwh");
+        if (totalKwhElement) {
+          totalKwhElement.textContent = `${powerData.cumulativeKWh.toFixed(
+            4
+          )} kWh`;
+        }
+
+        const lastUpdateElement = document.getElementById("last-update");
+        if (lastUpdateElement) {
+          lastUpdateElement.textContent = timeLabel;
+        }
 
         // Update cost information
         if (newData.energy) {
