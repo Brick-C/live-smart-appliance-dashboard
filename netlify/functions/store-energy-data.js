@@ -1,5 +1,7 @@
 const { MongoClient } = require("mongodb");
 
+console.log("MONGODB_URI exists?", !!process.env.MONGODB_URI);
+
 // Get these from your Netlify environment variables
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = "energy_monitor";

@@ -275,6 +275,9 @@ async function processAndRenderData(newData) {
   // Update historical data and analytics
   updateHistoricalData(newData);
   updateAnalytics(newData);
+
+  // Update cost displays with current electricity rate
+  updateCostDisplays();
 }
 
 //MAIN LOOP

@@ -10,7 +10,10 @@ class DatabaseService {
     if (this.client) return;
 
     try {
-      this.client = await MongoClient.connect(process.env.MONGODB_URI);
+      this.client = await MongoClient.connect(process.env.MONGODB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
       this.db = this.client.db("energy_monitor");
       console.log("Connected to MongoDB");
     } catch (error) {
