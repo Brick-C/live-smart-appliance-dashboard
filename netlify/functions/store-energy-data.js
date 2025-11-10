@@ -4,19 +4,62 @@ const { MongoClient } = require("mongodb");
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = "energy_monitor";
 
+// MongoDB connection options with timeouts
+const mongoOptions = {
+  connectTimeoutMS: 5000, // Connection timeout
+  socketTimeoutMS: 5000, // Socket timeout
+  serverSelectionTimeoutMS: 5000, // Server selection timeout
+  maxPoolSize: 10, // Maximum number of connections
+  retryWrites: true, // Enable retry on write operations
+};
+
 exports.handler = async (event, context) => {
+  // Add CORS headers
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Content-Type": "application/json",
+  };
+
+  // Handle OPTIONS request for CORS
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers,
+      body: "",
+    };
+  }
+
   // Only allow POST and GET methods
   if (event.httpMethod !== "POST" && event.httpMethod !== "GET") {
     return {
       statusCode: 405,
-      body: "Method Not Allowed",
+      headers,
+      body: JSON.stringify({ error: "Method Not Allowed" }),
+    };
+  }
+
+  // Validate MongoDB URI
+  if (!MONGODB_URI) {
+    console.error("MongoDB URI is not configured");
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: "Database configuration error" }),
     };
   }
 
   let client;
   try {
-    // Connect to MongoDB
-    client = await MongoClient.connect(MONGODB_URI);
+    // Connect to MongoDB with timeout
+    client = await Promise.race([
+      MongoClient.connect(MONGODB_URI, mongoOptions),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Database connection timeout")), 5000)
+      ),
+    ]);
+
     const db = client.db(DB_NAME);
     const readings = db.collection("energy_readings");
 
@@ -68,13 +111,46 @@ exports.handler = async (event, context) => {
       };
     }
   } catch (error) {
+    console.error("Database operation error:", error);
+    let statusCode = 500;
+    let errorMessage = "Internal server error";
+
+    // More specific error handling
+    if (error.message.includes("timeout")) {
+      statusCode = 504;
+      errorMessage = "Database operation timed out";
+    } else if (error.name === "MongoNetworkError") {
+      statusCode = 503;
+      errorMessage = "Database connection error";
+    } else if (error.name === "MongoServerError") {
+      statusCode = 502;
+      errorMessage = "Database server error";
+    }
+
     return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Failed to process request" }),
+      statusCode,
+      headers,
+      body: JSON.stringify({
+        error: errorMessage,
+        details:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      }),
     };
   } finally {
     if (client) {
-      await client.close();
+      try {
+        await Promise.race([
+          client.close(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Close connection timeout")),
+              2000
+            )
+          ),
+        ]);
+      } catch (error) {
+        console.error("Error closing database connection:", error);
+      }
     }
   }
 };

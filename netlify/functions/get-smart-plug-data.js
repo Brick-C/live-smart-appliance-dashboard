@@ -22,45 +22,7 @@ const DEVICES = [
 ];
 
 exports.handler = async (event, context) => {
-  // Check if this is a control command
-  if (event.httpMethod === "POST") {
-    const command = JSON.parse(event.body);
-    if (command.action !== "toggle") {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Invalid action" }),
-      };
-    }
-  }
-
-  // In the try block, before getting status
-  if (event.httpMethod === "POST") {
-    const command = JSON.parse(event.body);
-    // Get current status first
-    const statusResponse = await tuya.request({
-      method: "GET",
-      path: `/v1.0/devices/${deviceId}/status`,
-    });
-
-    const currentState = statusResponse.result.find(
-      (x) => x.code === "switch_1"
-    )?.value;
-    const newState = !currentState; // Toggle the state
-
-    await tuya.request({
-      method: "POST",
-      path: `/v1.0/devices/${deviceId}/commands`,
-      body: {
-        commands: [
-          {
-            code: "switch_1",
-            value: newState,
-          },
-        ],
-      },
-    });
-  }
-
+  // Initialize Tuya client first
   const ACCESS_ID = process.env.TUYA_ACCESS_ID;
   const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 
@@ -75,7 +37,76 @@ exports.handler = async (event, context) => {
     baseUrl: "https://openapi.tuyaeu.com", // Use your project's datacenter
     accessKey: ACCESS_ID,
     secretKey: ACCESS_SECRET,
+    timeout: 10000, // 10 second timeout
   });
+
+  // Check if this is a control command
+  if (event.httpMethod === "POST") {
+    try {
+      const command = JSON.parse(event.body);
+      if (command.action !== "toggle") {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: "Invalid action" }),
+        };
+      }
+
+      const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
+
+      // Get current status first with timeout
+      const statusResponse = await Promise.race([
+        tuya.request({
+          method: "GET",
+          path: `/v1.0/devices/${deviceId}/status`,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Status request timeout")), 8000)
+        ),
+      ]);
+
+      const currentState = statusResponse.result.find(
+        (x) => x.code === "switch_1"
+      )?.value;
+      const newState = !currentState; // Toggle the state
+
+      // Send toggle command with timeout
+      await Promise.race([
+        tuya.request({
+          method: "POST",
+          path: `/v1.0/devices/${deviceId}/commands`,
+          body: {
+            commands: [
+              {
+                code: "switch_1",
+                value: newState,
+              },
+            ],
+          },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Toggle command timeout")), 8000)
+        ),
+      ]);
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ success: true, state: newState }),
+      };
+    } catch (error) {
+      console.error("Toggle error:", error);
+      return {
+        statusCode: 503,
+        body: JSON.stringify({
+          error: "Failed to toggle device",
+          details: error.message,
+        }),
+      };
+    }
+  }
 
   try {
     // Handle list devices request
@@ -104,10 +135,18 @@ exports.handler = async (event, context) => {
     const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
     const device = DEVICES.find((d) => d.id === deviceId) || DEVICES[0];
 
-    const response = await tuya.request({
-      method: "GET",
-      path: `/v1.0/devices/${deviceId}/status`,
-    });
+    const response = await Promise.race([
+      tuya.request({
+        method: "GET",
+        path: `/v1.0/devices/${deviceId}/status`,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Device status request timeout")),
+          8000
+        )
+      ),
+    ]);
 
     if (!response.success) {
       throw new Error("Tuya API request failed");

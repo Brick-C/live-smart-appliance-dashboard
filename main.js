@@ -176,22 +176,52 @@ async function processAndRenderData(newData) {
   const timeInHours = deltaMs / 3600000;
   const kwh_increment = powerInKW * timeInHours;
 
-  // Store the data in our database
-  try {
-    await fetch("/.netlify/functions/store-energy-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        deviceId: currentDeviceId,
-        watts: newData.watts,
-        kWh: kwh_increment,
-        cost: newData.energy ? kwh_increment * newData.energy.ratePerKWh : 0,
-      }),
-    });
-  } catch (error) {
-    console.error("Failed to store energy data:", error);
+  // Store the data in our database with retry logic
+  const maxRetries = 3;
+  let retryCount = 0;
+
+  while (retryCount < maxRetries) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
+      const response = await fetch("/.netlify/functions/store-energy-data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          deviceId: currentDeviceId,
+          watts: newData.watts,
+          kWh: kwh_increment,
+          cost: newData.energy ? kwh_increment * newData.energy.ratePerKWh : 0,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      break; // Success, exit retry loop
+    } catch (error) {
+      retryCount++;
+      console.error(
+        `Failed to store energy data (attempt ${retryCount}/${maxRetries}):`,
+        error
+      );
+
+      if (retryCount === maxRetries) {
+        console.error("Max retries reached for storing energy data");
+        break;
+      }
+
+      // Exponential backoff between retries
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(1000 * Math.pow(2, retryCount), 5000))
+      );
+    }
   }
 
   // 2. Update Data Arrays (for charts)
