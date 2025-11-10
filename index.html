@@ -52,14 +52,7 @@
                   <option value="">Loading devices...</option>
                 </select>
               </div>
-              <div
-                class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-              >
-                <span class="font-medium text-gray-700">Location:</span>
-                <span class="font-semibold text-blue-600" id="device-location"
-                  >--</span
-                >
-              </div>
+              <!-- Location removed for privacy -->
               <div
                 class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
               >
@@ -149,6 +142,76 @@
           Energy Usage Trend (kW/h per Update)
         </h2>
         <canvas id="energyChart"></canvas>
+      </div>
+
+      <!-- Analytics Section -->
+      <div class="mt-6 p-6 bg-white rounded-xl card">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">
+          Energy Analytics
+        </h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- Efficiency Score -->
+          <div class="p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">
+              Efficiency Score
+            </h3>
+            <div class="flex items-center justify-between">
+              <div class="text-3xl font-bold" id="efficiency-score">--</div>
+              <div class="text-sm text-gray-600" id="efficiency-label">
+                Calculating...
+              </div>
+            </div>
+          </div>
+
+          <!-- Usage Insights -->
+          <div class="p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">
+              Cost Insights
+            </h3>
+            <div id="cost-insights" class="text-sm text-gray-600">
+              <div class="flex justify-between mb-1">
+                <span>Today vs Yesterday:</span>
+                <span id="cost-comparison">--</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Projected Monthly:</span>
+                <span id="projected-cost">--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recommendations -->
+          <div class="p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Smart Tips</h3>
+            <ul id="energy-tips" class="text-sm text-gray-600 space-y-1">
+              <li>Loading recommendations...</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Usage Anomalies -->
+        <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+          <h3 class="text-lg font-semibold text-gray-700 mb-3">
+            Usage Analysis
+          </h3>
+          <div
+            id="usage-anomalies"
+            class="grid grid-cols-1 lg:grid-cols-2 gap-4"
+          >
+            <div class="space-y-2">
+              <div class="text-sm font-medium">Peak Usage Times:</div>
+              <div id="peak-times" class="text-sm text-gray-600">
+                Analyzing...
+              </div>
+            </div>
+            <div class="space-y-2">
+              <div class="text-sm font-medium">Standby Power Detection:</div>
+              <div id="standby-detection" class="text-sm text-gray-600">
+                Monitoring...
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Enhanced Historical Data Section -->
@@ -413,7 +476,7 @@
         // 3. Update Cumulative Energy
         powerData.cumulativeKWh += kwh_increment;
 
-        // 4. Manage Data History (Sliding Window)
+        // 4. Manage Data History
         if (powerData.labels.length > MAX_DATA_POINTS) {
           powerData.labels.shift();
           powerData.watts.shift();
@@ -421,7 +484,6 @@
         }
 
         // 5. Update Charts
-        // Use 'none' for animation to make it feel faster
         powerChart.update("none");
         energyChart.update("none");
 
@@ -452,8 +514,9 @@
           ).textContent = `$${newData.energy.projectedDailyCost.toFixed(2)}`;
         }
 
-        // Update historical data
+        // Update historical data and analytics
         updateHistoricalData(newData);
+        updateAnalytics(newData);
       }
 
       //MAIN LOOP
@@ -496,6 +559,182 @@
           setInterval(fetchDataAndRender, updateIntervalMs);
         });
       };
+
+      // Analytics management
+      const analytics = {
+        baselineWatts: 5, // Typical standby power consumption
+        peakThreshold: 800, // Threshold for peak usage warning
+        efficiencyThresholds: {
+          excellent: 90,
+          good: 75,
+          fair: 60,
+        },
+        dailyData: {
+          today: [],
+          yesterday: [],
+        },
+      };
+
+      function updateAnalytics(newData) {
+        // Update daily data
+        const now = new Date();
+        analytics.dailyData.today.push({
+          time: now,
+          watts: newData.watts,
+          cost: (newData.watts / 1000) * newData.energy.ratePerKWh,
+        });
+
+        // Calculate efficiency score (0-100)
+        const efficiencyScore = calculateEfficiencyScore(newData.watts);
+        document.getElementById("efficiency-score").textContent =
+          efficiencyScore;
+        updateEfficiencyLabel(efficiencyScore);
+
+        // Update cost insights
+        updateCostInsights(newData);
+
+        // Update usage analysis
+        updateUsageAnalysis(newData);
+
+        // Generate and update smart tips
+        updateSmartTips(newData);
+      }
+
+      function calculateEfficiencyScore(currentWatts) {
+        // Simple efficiency calculation based on typical usage patterns
+        let score = 100;
+
+        // Penalize for high power usage
+        if (currentWatts > analytics.peakThreshold) {
+          score -= 20;
+        }
+
+        // Penalize for unnecessary standby power
+        if (currentWatts > analytics.baselineWatts && currentWatts < 50) {
+          score -= 10;
+        }
+
+        // Factor in time of day
+        const hour = new Date().getHours();
+        if (
+          (hour >= 23 || hour <= 5) &&
+          currentWatts > analytics.baselineWatts
+        ) {
+          score -= 15;
+        }
+
+        return Math.max(0, Math.min(100, score));
+      }
+
+      function updateEfficiencyLabel(score) {
+        const element = document.getElementById("efficiency-label");
+        if (score >= analytics.efficiencyThresholds.excellent) {
+          element.textContent = "Excellent";
+          element.className = "text-sm text-green-600";
+        } else if (score >= analytics.efficiencyThresholds.good) {
+          element.textContent = "Good";
+          element.className = "text-sm text-blue-600";
+        } else if (score >= analytics.efficiencyThresholds.fair) {
+          element.textContent = "Fair";
+          element.className = "text-sm text-yellow-600";
+        } else {
+          element.textContent = "Needs Improvement";
+          element.className = "text-sm text-red-600";
+        }
+      }
+
+      function updateCostInsights(newData) {
+        // Calculate today's total cost
+        const todayTotal = analytics.dailyData.today.reduce(
+          (sum, data) => sum + data.cost,
+          0
+        );
+
+        // Project monthly cost
+        const projectedMonthly = (todayTotal / new Date().getHours()) * 24 * 30;
+
+        document.getElementById("cost-comparison").textContent = analytics
+          .dailyData.yesterday.length
+          ? `${(
+              (todayTotal /
+                analytics.dailyData.yesterday.reduce(
+                  (sum, data) => sum + data.cost,
+                  0
+                ) -
+                1) *
+              100
+            ).toFixed(1)}%`
+          : "No data";
+
+        document.getElementById(
+          "projected-cost"
+        ).textContent = `$${projectedMonthly.toFixed(2)}`;
+      }
+
+      function updateUsageAnalysis(newData) {
+        // Detect standby power waste
+        const standbyDetection = document.getElementById("standby-detection");
+        if (newData.watts > analytics.baselineWatts && newData.watts < 50) {
+          standbyDetection.textContent =
+            "Possible standby power waste detected";
+          standbyDetection.className = "text-sm text-yellow-600";
+        } else if (newData.watts <= analytics.baselineWatts) {
+          standbyDetection.textContent = "Normal standby power";
+          standbyDetection.className = "text-sm text-green-600";
+        }
+
+        // Update peak times
+        const peakTimes = document.getElementById("peak-times");
+        if (newData.watts > analytics.peakThreshold) {
+          peakTimes.textContent =
+            "High usage detected - Consider rescheduling usage";
+          peakTimes.className = "text-sm text-red-600";
+        } else {
+          peakTimes.textContent = "Normal usage pattern";
+          peakTimes.className = "text-sm text-green-600";
+        }
+      }
+
+      function updateSmartTips(newData) {
+        const tips = [];
+        const hour = new Date().getHours();
+
+        if (newData.watts > analytics.peakThreshold) {
+          tips.push(
+            "⚡ High power usage detected. Consider spreading usage throughout the day."
+          );
+        }
+
+        if (newData.watts > analytics.baselineWatts && newData.watts < 50) {
+          tips.push(
+            "💡 Standby power detected. Consider using a smart power strip."
+          );
+        }
+
+        if (hour >= 23 || hour <= 5) {
+          tips.push(
+            "🌙 Night-time usage detected. Check for unnecessary active devices."
+          );
+        }
+
+        if (analytics.dailyData.today.length > 0) {
+          const avgWatts =
+            analytics.dailyData.today.reduce(
+              (sum, data) => sum + data.watts,
+              0
+            ) / analytics.dailyData.today.length;
+          if (avgWatts > 500) {
+            tips.push(
+              "📊 Today's average usage is high. Review device settings for energy savings."
+            );
+          }
+        }
+
+        document.getElementById("energy-tips").innerHTML =
+          tips.length > 0
+            ? tips.map((tip) => `<li>${tip}</li>`).join("")
+            : "<li>✅ No immediate energy saving opportunities identified.</li>";
+      }
 
       // Historical data management
       const historicalData = {
