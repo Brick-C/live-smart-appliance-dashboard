@@ -37,7 +37,7 @@ TUYA_ACCESS_SECRET="YOUR_TUYA_SECRET_KEY_GOES_HERE"
 # The unique ID of your smart plug device obtained from the Tuya IoT Platform
 DEVICE_ID_1="YOUR_SMART_PLUG_DEVICE_ID_GOES_HERE"
 
-# Mongoodb connection string
+# Mongoodb atlas connection string
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster1.wv7lvme.mongodb.net/?retryWrites=true&w=majority&appName=<whatever-name-you-gave-in-the-setup>
 ```
 
