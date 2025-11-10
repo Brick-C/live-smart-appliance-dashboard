@@ -46,13 +46,13 @@ exports.handler = async (event, context) => {
   }
 
   const tuya = new TuyaContext({
-    baseUrl: "https://openapi.tuyaeu.com", // ✅ Use your project's datacenter
+    baseUrl: "https://openapi.tuyaeu.com", // Use your project's datacenter
     accessKey: ACCESS_ID,
     secretKey: ACCESS_SECRET,
   });
 
   try {
-    const deviceId = "eu17625368864792sOs9"; // your device ID
+    const deviceId = "bfb4193c3c41952bd25rju"; // your device ID
     const response = await tuya.request({
       method: "GET",
       path: `/v1.0/devices/${deviceId}/status`,
@@ -73,7 +73,7 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify({
         watts,
-        device: "Real Coffee Maker",
+        device: "Smart Plug",
         timestamp: Date.now(),
       }),
     };
