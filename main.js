@@ -2,6 +2,17 @@
 let currentDeviceId = null;
 let devices = [];
 
+function updateDeviceInfo(device) {
+  // Update the device information in the UI
+  const deviceName = document.getElementById("device-name");
+  const deviceType = document.getElementById("device-type");
+  const deviceId = document.getElementById("device-id");
+
+  if (deviceName) deviceName.textContent = device.name || "Unknown Device";
+  if (deviceType) deviceType.textContent = device.type || "Unknown Type";
+  if (deviceId) deviceId.textContent = device.id || "Unknown ID";
+}
+
 async function loadDevices() {
   try {
     const response = await fetch(
