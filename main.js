@@ -158,6 +158,21 @@ const powerChart = new Chart(powerCtx, {
     plugins: {
       legend: { display: false },
       title: { display: false },
+      zoom: {
+        zoom: {
+          wheel: { enabled: true },
+          pinch: { enabled: true },
+          mode: "x",
+        },
+        pan: {
+          enabled: true,
+          mode: "x",
+        },
+        limits: {
+          x: { min: "original", max: "original" },
+          y: { min: 0 },
+        },
+      },
     },
   },
 });
@@ -331,13 +346,13 @@ async function processAndRenderData(newData) {
   if (newData.energy) {
     document.getElementById(
       "rate-per-kwh"
-    ).textContent = `$${newData.energy.ratePerKWh.toFixed(2)}/kWh`;
+    ).textContent = `৳${newData.energy.ratePerKWh.toFixed(2)}/kWh`;
     document.getElementById(
       "hourly-cost"
-    ).textContent = `$${newData.energy.hourlyCost.toFixed(3)}/hr`;
+    ).textContent = `৳${newData.energy.hourlyCost.toFixed(3)}/hr`;
     document.getElementById(
       "daily-cost"
-    ).textContent = `$${newData.energy.projectedDailyCost.toFixed(2)}`;
+    ).textContent = `৳${newData.energy.projectedDailyCost.toFixed(2)}`;
   }
 
   // Update historical data and analytics
@@ -497,7 +512,7 @@ function updateAnalytics(newData) {
 
   document.getElementById(
     "projected-cost"
-  ).textContent = `$${monthlyCostProjection.toFixed(2)}`;
+  ).textContent = `৳${monthlyCostProjection.toFixed(2)}`;
 
   // Update usage analysis with current data
   updateUsageAnalysis(newData, dailyAvgWatts);

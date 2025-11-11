@@ -1,6 +1,6 @@
-// Default electricity rate
+// Default electricity rate (Bangladesh: 9.5 BDT/kWh - typical household rate with surcharges)
 let electricityRate =
-  parseFloat(localStorage.getItem("electricityRate")) || 0.15;
+  parseFloat(localStorage.getItem("electricityRate")) || 9.5;
 
 // Function to update electricity rate
 function updateElectricityRate(rate) {
@@ -109,14 +109,14 @@ async function updateCostDisplays() {
     const todayCost = await calculateDailyCost(currentDeviceId);
     const todayCostElement = document.getElementById("today-cost");
     if (todayCostElement) {
-      todayCostElement.textContent = `$${todayCost.toFixed(2)}`;
+      todayCostElement.textContent = `৳${todayCost.toFixed(2)}`;
     }
 
     // Update this week's cost
     const weekCost = await calculateWeeklyCost(currentDeviceId);
     const weekCostElement = document.getElementById("week-cost");
     if (weekCostElement) {
-      weekCostElement.textContent = `$${weekCost.toFixed(2)}`;
+      weekCostElement.textContent = `৳${weekCost.toFixed(2)}`;
     }
 
     // Update rate display

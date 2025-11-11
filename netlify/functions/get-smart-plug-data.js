@@ -160,8 +160,8 @@ exports.handler = async (event, context) => {
     const power = response.result.find((x) => x.code === "cur_power");
     const watts = isDeviceOn && power ? power.value / 10 : 0;
 
-    // Calculate costs (assuming average electricity rate of $0.12 per kWh)
-    const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 0.12; // Get from env or use default
+    // Calculate costs (Bangladesh electricity rate: 9.5 BDT/kWh - typical with surcharges)
+    const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 9.5; // Get from env or use default
     const kW = watts / 1000;
     const hourlyRate = kW * RATE_PER_KWH;
     const dailyCost = hourlyRate * 24; // Projected daily cost at current rate
