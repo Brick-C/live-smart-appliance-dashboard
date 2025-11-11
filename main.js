@@ -145,10 +145,23 @@ const energyChart = new Chart(energyCtx, {
     labels: powerData.labels,
     datasets: [
       {
-        label: "Energy Consumption (kWh)",
+        type: "bar",
+        label: "Energy (kWh)",
         data: powerData.kwh,
-        backgroundColor: "rgba(85, 204, 247, 1)",
-        borderWidth: 1,
+        backgroundColor: "rgba(247, 207, 85, 0.8)",
+        borderWidth: 0,
+      },
+      {
+        type: "line",
+        label: "Cumulative Energy (kWh)",
+        data: powerData.kwh.map((_, i) =>
+          powerData.kwh.slice(0, i + 1).reduce((a, b) => a + b, 0)
+        ),
+        borderColor: "rgba(160, 0, 0, 1)",
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.3,
       },
     ],
   },
