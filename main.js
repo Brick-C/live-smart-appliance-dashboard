@@ -1,6 +1,7 @@
 // Device management
 let currentDeviceId = null;
 let devices = [];
+let deviceStates = {}; // Track on/off state per device
 
 function updateDeviceInfo(device) {
   // Update the device information in the UI
@@ -11,6 +12,14 @@ function updateDeviceInfo(device) {
   if (deviceName) deviceName.textContent = device.name || "Unknown Device";
   if (deviceType) deviceType.textContent = device.type || "Unknown Type";
   if (deviceId) deviceId.textContent = device.id || "Unknown ID";
+}
+
+function getDeviceState(deviceId) {
+  return deviceStates[deviceId] !== undefined ? deviceStates[deviceId] : true;
+}
+
+function setDeviceState(deviceId, state) {
+  deviceStates[deviceId] = state;
 }
 
 async function loadDevices() {
@@ -58,9 +67,19 @@ async function changeDevice(deviceId) {
     historicalData.dailyData = [];
 
     // Reset charts
+    powerChart.data.labels = [];
+    powerChart.data.datasets[0].data = [];
     powerChart.update();
+
+    energyChart.data.labels = [];
+    energyChart.data.datasets[0].data = [];
     energyChart.update();
+
+    patternsChart.data.datasets[0].data = Array(24).fill(0);
     patternsChart.update();
+
+    // Reset last update timestamp to calculate proper delta
+    lastUpdateTimestamp = Date.now();
 
     // Load historical data for the new device
     try {
@@ -68,7 +87,7 @@ async function changeDevice(deviceId) {
         "/.netlify/functions/store-energy-data?" +
           new URLSearchParams({
             deviceId: currentDeviceId,
-            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last 24 hours
+            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
           })
       );
 
@@ -86,6 +105,11 @@ async function changeDevice(deviceId) {
     // Update analytics and historical view
     await updateHistoricalView();
     updateCostDisplays();
+
+    // Update button state for current device
+    const button = document.getElementById("toggle-button");
+    const isOn = getDeviceState(currentDeviceId);
+    button.textContent = isOn ? "Turn OFF" : "Turn ON";
   }
 }
 
@@ -947,6 +971,7 @@ function updateDailySummary(newData) {
   ).textContent = `$${projectedDailyCost.toFixed(2)}`;
 
   // Check if the device is off and skip calculations
+  const isDeviceOn = getDeviceState(currentDeviceId);
   if (!isDeviceOn) {
     safeUpdateElement("hourly-cost", "$0.00/hr");
     safeUpdateElement("daily-cost", "$0.00");
@@ -1034,7 +1059,6 @@ document
   });
 
 // Device control functionality
-let isDeviceOn = true; // Track device state
 
 async function toggleDevice() {
   const button = document.getElementById("toggle-button");
@@ -1057,12 +1081,17 @@ async function toggleDevice() {
       throw new Error("Failed to toggle device");
     }
 
+    const result = await response.json();
+
+    // Update device state based on response
+    const newState = result.state;
+    setDeviceState(currentDeviceId, newState);
+
     // Update button state
-    isDeviceOn = !isDeviceOn;
-    button.textContent = isDeviceOn ? "Turn OFF" : "Turn ON";
+    button.textContent = newState ? "Turn OFF" : "Turn ON";
 
     // Reset power data if the device is turned off
-    if (!isDeviceOn) {
+    if (!newState) {
       resetPowerData();
     }
 
