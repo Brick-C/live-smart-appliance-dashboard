@@ -882,6 +882,18 @@ function processHistoricalData(data) {
   updatePeakHoursList(historicalData.hourlyData);
 }
 
+/**
+ * Safely updates the text content of an element if it exists.
+ * @param {string} id - The ID of the element to update.
+ * @param {string} text - The text to set.
+ */
+function safeUpdateElement(id, text) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = text;
+  }
+}
+
 function updateDailySummary(newData) {
   if (!newData || powerData.watts.length === 0) return;
 

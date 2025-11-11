@@ -33,15 +33,25 @@ async function calculateDailyCost(deviceId, date = new Date()) {
     );
 
     const response = await fetch(
-      `/.netlify/functions/get-historical-data?` +
+      `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
-          type: "hourly",
           startTime: startOfDay.toISOString(),
           endTime: endOfDay.toISOString(),
         })
     );
+
+    if (!response.ok) {
+      console.error(`API Error: ${response.status} ${response.statusText}`);
+      return 0;
+    }
+
     const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      console.error("Invalid data format from API:", data);
+      return 0;
+    }
 
     const totalKWh = data.reduce((sum, reading) => sum + (reading.kWh || 0), 0);
     return calculateCost(totalKWh);
@@ -59,20 +69,27 @@ async function calculateWeeklyCost(deviceId) {
     startDate.setDate(startDate.getDate() - 7);
 
     const response = await fetch(
-      `/.netlify/functions/get-historical-data?` +
+      `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
-          type: "daily",
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
         })
     );
+
+    if (!response.ok) {
+      console.error(`API Error: ${response.status} ${response.statusText}`);
+      return 0;
+    }
+
     const data = await response.json();
 
-    const totalKWh = data.reduce(
-      (sum, reading) => sum + (reading.totalKWh || 0),
-      0
-    );
+    if (!Array.isArray(data)) {
+      console.error("Invalid data format from API:", data);
+      return 0;
+    }
+
+    const totalKWh = data.reduce((sum, reading) => sum + (reading.kWh || 0), 0);
     return calculateCost(totalKWh);
   } catch (error) {
     console.error("Error calculating weekly cost:", error);
@@ -82,21 +99,34 @@ async function calculateWeeklyCost(deviceId) {
 
 // Function to update all cost displays
 async function updateCostDisplays() {
-  if (!currentDeviceId) return;
+  if (!currentDeviceId) {
+    console.warn("updateCostDisplays called but no device selected");
+    return;
+  }
 
-  // Update today's cost
-  const todayCost = await calculateDailyCost(currentDeviceId);
-  document.getElementById("today-cost").textContent = `$${todayCost.toFixed(
-    2
-  )}`;
+  try {
+    // Update today's cost
+    const todayCost = await calculateDailyCost(currentDeviceId);
+    const todayCostElement = document.getElementById("today-cost");
+    if (todayCostElement) {
+      todayCostElement.textContent = `$${todayCost.toFixed(2)}`;
+    }
 
-  // Update this week's cost
-  const weekCost = await calculateWeeklyCost(currentDeviceId);
-  document.getElementById("week-cost").textContent = `$${weekCost.toFixed(2)}`;
+    // Update this week's cost
+    const weekCost = await calculateWeeklyCost(currentDeviceId);
+    const weekCostElement = document.getElementById("week-cost");
+    if (weekCostElement) {
+      weekCostElement.textContent = `$${weekCost.toFixed(2)}`;
+    }
 
-  // Update rate display
-  document.getElementById("electricity-rate").value =
-    electricityRate.toFixed(2);
+    // Update rate display
+    const rateElement = document.getElementById("electricity-rate");
+    if (rateElement) {
+      rateElement.value = electricityRate.toFixed(2);
+    }
+  } catch (error) {
+    console.error("Error updating cost displays:", error);
+  }
 }
 
 // Initialize electricity rate on page load
@@ -105,3 +135,43 @@ window.addEventListener("load", () => {
     electricityRate.toFixed(2);
   updateCostDisplays();
 });
+
+// Debug function to check database data (open console and run: checkDatabaseData())
+async function checkDatabaseData() {
+  if (!currentDeviceId) {
+    console.log("No device selected");
+    return;
+  }
+
+  console.log("Checking database for device:", currentDeviceId);
+
+  try {
+    const response = await fetch(
+      `/.netlify/functions/store-energy-data?` +
+        new URLSearchParams({
+          deviceId: currentDeviceId,
+          startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          endTime: new Date().toISOString(),
+        })
+    );
+
+    const data = await response.json();
+    console.log("Database response:", data);
+    console.log("Total records:", Array.isArray(data) ? data.length : 0);
+
+    if (Array.isArray(data) && data.length > 0) {
+      const totalKWh = data.reduce(
+        (sum, reading) => sum + (reading.kWh || 0),
+        0
+      );
+      const totalCost = data.reduce(
+        (sum, reading) => sum + (reading.cost || 0),
+        0
+      );
+      console.log("Total kWh today:", totalKWh);
+      console.log("Total cost today:", totalCost);
+    }
+  } catch (error) {
+    console.error("Error checking database:", error);
+  }
+}
