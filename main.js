@@ -920,6 +920,14 @@ function updateDailySummary(newData) {
   document.getElementById(
     "daily-cost"
   ).textContent = `$${projectedDailyCost.toFixed(2)}`;
+
+  // Check if the device is off and skip calculations
+  if (!isDeviceOn) {
+    safeUpdateElement("hourly-cost", "$0.00/hr");
+    safeUpdateElement("daily-cost", "$0.00");
+    safeUpdateElement("total-cost", "$0.00");
+    return;
+  }
 }
 
 // Export functionality
@@ -1028,6 +1036,11 @@ async function toggleDevice() {
     isDeviceOn = !isDeviceOn;
     button.textContent = isDeviceOn ? "Turn OFF" : "Turn ON";
 
+    // Reset power data if the device is turned off
+    if (!isDeviceOn) {
+      resetPowerData();
+    }
+
     // Fetch updated status
     await fetchDataAndRender();
   } catch (error) {
@@ -1037,4 +1050,30 @@ async function toggleDevice() {
     button.disabled = false;
     button.classList.remove("opacity-50");
   }
+}
+
+// Reset power data and update dashboard when the device is turned off
+function resetPowerData() {
+  powerData.labels = [];
+  powerData.watts = [];
+  powerData.kwh = [];
+  powerData.cumulativeKWh = 0;
+
+  analytics.dailyData.today = [];
+
+  // Update dashboard to reflect zero usage
+  safeUpdateElement("current-watts", "0 W");
+  safeUpdateElement("total-kwh", "0.000 kWh");
+  safeUpdateElement("hourly-cost", "$0.00/hr");
+  safeUpdateElement("daily-cost", "$0.00");
+  safeUpdateElement("total-cost", "$0.00");
+
+  // Reset charts
+  powerChart.data.labels = [];
+  powerChart.data.datasets[0].data = [];
+  powerChart.update();
+
+  energyChart.data.labels = [];
+  energyChart.data.datasets[0].data = [];
+  energyChart.update();
 }
