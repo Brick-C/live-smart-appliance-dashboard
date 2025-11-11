@@ -975,22 +975,22 @@ function updateDailySummary(newData) {
   document.getElementById(
     "total-usage"
   ).textContent = `${powerData.cumulativeKWh.toFixed(3)} kWh`;
-  document.getElementById("total-cost").textContent = `$${(
+  document.getElementById("total-cost").textContent = `৳${(
     powerData.cumulativeKWh * (newData.energy?.ratePerKWh || 0.15)
   ).toFixed(2)}`;
-  document.getElementById("hourly-cost").textContent = `$${hourlyCost.toFixed(
+  document.getElementById("hourly-cost").textContent = `৳${hourlyCost.toFixed(
     3
   )}/hr`;
   document.getElementById(
     "daily-cost"
-  ).textContent = `$${projectedDailyCost.toFixed(2)}`;
+  ).textContent = `৳${projectedDailyCost.toFixed(2)}`;
 
   // Check if the device is off and skip calculations
   const isDeviceOn = getDeviceState(currentDeviceId);
   if (!isDeviceOn) {
-    safeUpdateElement("hourly-cost", "$0.00/hr");
-    safeUpdateElement("daily-cost", "$0.00");
-    safeUpdateElement("total-cost", "$0.00");
+    safeUpdateElement("hourly-cost", "৳0.00/hr");
+    safeUpdateElement("daily-cost", "৳0.00");
+    safeUpdateElement("total-cost", "৳0.00");
     return;
   }
 }
@@ -1043,7 +1043,7 @@ async function exportData(format) {
         ["Peak Usage (W)", exportData.summary.peakUsage.toFixed(2)],
         ["Average Usage (W)", exportData.summary.averageUsage.toFixed(2)],
         ["Total Energy (kWh)", exportData.summary.totalKWh.toFixed(4)],
-        ["Total Cost ($)", exportData.summary.totalCost.toFixed(2)],
+        ["Total Cost (৳)", exportData.summary.totalCost.toFixed(2)],
       ];
       dataStr = csvRows.map((row) => row.join(",")).join("\n");
       fileName = `energy-data-${timeframe}-${new Date().toISOString()}.csv`;
