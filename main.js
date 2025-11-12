@@ -1,5 +1,3 @@
-import zoomPlugin from "chartjs-plugin-zoom";
-
 // Device management
 let currentDeviceId = null;
 let devices = [];
@@ -161,7 +159,8 @@ let lastUpdateTimestamp = Date.now();
 const updateIntervalMs = 5000; // API fetch interval (5 seconds)
 
 // --- CHART INITIALIZATION ---
-Chart.register(zoomPlugin);
+Chart.register(window["chartjs-plugin-zoom"]);
+Chart.register(ChartZoom);
 const powerCtx = document.getElementById("powerChart").getContext("2d");
 const powerChart = new Chart(powerCtx, {
   type: "line",
@@ -196,21 +195,6 @@ const powerChart = new Chart(powerCtx, {
     plugins: {
       legend: { display: false },
       title: { display: false },
-      zoom: {
-        zoom: {
-          wheel: { enabled: true },
-          pinch: { enabled: true },
-          mode: "x",
-        },
-        pan: {
-          enabled: true,
-          mode: "x",
-        },
-        limits: {
-          x: { min: "original", max: "original" },
-          y: { min: 0 },
-        },
-      },
     },
   },
 });
@@ -258,6 +242,17 @@ const energyChart = new Chart(energyCtx, {
     plugins: {
       legend: { display: false },
       title: { display: false },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: "x",
+        },
+        zoom: {
+          wheel: { enabled: true },
+          pinch: { enabled: true },
+          mode: "x",
+        },
+      },
     },
   },
 });

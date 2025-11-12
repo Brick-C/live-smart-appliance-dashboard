@@ -119,7 +119,8 @@ async function calculateWeeklyCost(deviceId) {
 
 // Function to update all cost displays
 async function updateCostDisplays() {
-  if (!currentDeviceId) {
+  // Check if currentDeviceId is defined and not null/empty
+  if (typeof currentDeviceId === "undefined" || !currentDeviceId) {
     console.warn("updateCostDisplays called but no device selected");
     return;
   }
@@ -151,9 +152,15 @@ async function updateCostDisplays() {
 
 // Initialize electricity rate on page load
 window.addEventListener("load", () => {
-  document.getElementById("electricity-rate").value =
-    electricityRate.toFixed(2);
-  updateCostDisplays();
+  const rateElement = document.getElementById("electricity-rate");
+  if (rateElement) {
+    rateElement.value = electricityRate.toFixed(2);
+  }
+
+  // Only update cost displays if currentDeviceId is defined
+  if (typeof currentDeviceId !== "undefined" && currentDeviceId) {
+    updateCostDisplays();
+  }
 });
 
 // Debug function to check database data (open console and run: checkDatabaseData())
