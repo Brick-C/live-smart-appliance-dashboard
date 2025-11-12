@@ -14,7 +14,7 @@ const DEVICES = [
     type: "Smart Plug",
   },
   {
-    id: process.env.DEVICE_ID_2,
+    id: process.env.DEVICE_ID_2 || "device_id_2",
     name: "Computer",
     location: "Smart Plug",
     type: "Smart Plug",
@@ -44,6 +44,7 @@ exports.handler = async (event, context) => {
   if (event.httpMethod === "POST") {
     try {
       const command = JSON.parse(event.body);
+
       if (command.action !== "toggle") {
         return {
           statusCode: 400,
@@ -82,6 +83,8 @@ exports.handler = async (event, context) => {
       )?.value;
       const newState = !currentState; // Toggle the state
 
+      console.log(`Current state: ${currentState}, New state: ${newState}`);
+
       // Send toggle command with timeout
       await Promise.race([
         tuya.request({
@@ -100,6 +103,8 @@ exports.handler = async (event, context) => {
           setTimeout(() => reject(new Error("Toggle command timeout")), 8000)
         ),
       ]);
+
+      console.log("Toggle command successful");
 
       return {
         statusCode: 200,
@@ -148,6 +153,8 @@ exports.handler = async (event, context) => {
     const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
     const device = DEVICES.find((d) => d.id === deviceId) || DEVICES[0];
 
+    console.log("Fetching data for device:", deviceId, "Name:", device.name);
+
     const response = await Promise.race([
       tuya.request({
         method: "GET",
@@ -172,6 +179,13 @@ exports.handler = async (event, context) => {
     // Only get power if device is on
     const power = response.result.find((x) => x.code === "cur_power");
     const watts = isDeviceOn && power ? power.value / 10 : 0;
+
+    console.log("Device status:", {
+      deviceId,
+      isDeviceOn,
+      power: power ? power.value : "not available",
+      watts,
+    });
 
     // Calculate costs (Bangladesh electricity rate: 9.5 BDT/kWh - typical with surcharges)
     const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 9.5; // Get from env or use default
@@ -203,6 +217,7 @@ exports.handler = async (event, context) => {
       }),
     };
   } catch (error) {
+    console.error("Error fetching device data:", error);
     return {
       statusCode: 502,
       body: JSON.stringify({ error: error.message }),
