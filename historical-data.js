@@ -110,7 +110,19 @@ async function updateHistoricalView() {
           endDate
         );
 
-        // Get daily breakdown for charts
+        // Get daily breakdown for charts from database
+        const response = await fetch(
+          `/.netlify/functions/get-historical-data?` +
+            new URLSearchParams({
+              deviceId: currentDeviceId,
+              startTime: startDate.toISOString(),
+              endTime: endDate.toISOString(),
+              type: "daily",
+            })
+        );
+        if (response.ok) {
+          chartData = await response.json();
+        }
         break;
       }
       case "last30": {
@@ -125,7 +137,19 @@ async function updateHistoricalView() {
           endDate
         );
 
-        // Get daily breakdown for charts
+        // Get daily breakdown for charts from database
+        const response = await fetch(
+          `/.netlify/functions/get-historical-data?` +
+            new URLSearchParams({
+              deviceId: currentDeviceId,
+              startTime: startDate.toISOString(),
+              endTime: endDate.toISOString(),
+              type: "daily",
+            })
+        );
+        if (response.ok) {
+          chartData = await response.json();
+        }
         break;
       }
     }
@@ -135,10 +159,8 @@ async function updateHistoricalView() {
       updateHistoricalStats(statsData);
     }
 
-    if (chartData) {
-      // Update charts with detailed data
-      updateHistoricalCharts(chartData, timeframe);
-    }
+    // Always call updateHistoricalCharts, even with empty data to clear the charts
+    updateHistoricalCharts(chartData || [], timeframe);
   } catch (error) {
     console.error("Error updating historical view:", error);
   }
@@ -146,28 +168,42 @@ async function updateHistoricalView() {
 
 // Function to update historical charts
 function updateHistoricalCharts(data, timeframe) {
+  if (!data) data = [];
+
   if (timeframe === "today" || timeframe === "yesterday") {
     // Update hourly pattern chart
     const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
     const values = Array(24).fill(0);
 
-    data.forEach((entry) => {
-      values[entry._id] = entry.avgWatts;
-    });
+    if (Array.isArray(data) && data.length > 0) {
+      data.forEach((entry) => {
+        if (entry._id !== null && entry._id !== undefined) {
+          values[entry._id] = entry.avgWatts || 0;
+        }
+      });
+    }
 
     patternsChart.data.labels = hours;
     patternsChart.data.datasets[0].data = values;
     patternsChart.update();
   } else {
     // Update daily pattern chart
-    const labels = data.map((entry) =>
-      new Date(
-        entry._id.year,
-        entry._id.month - 1,
-        entry._id.day
-      ).toLocaleDateString()
-    );
-    const values = data.map((entry) => entry.avgWatts);
+    let labels = [];
+    let values = [];
+
+    if (Array.isArray(data) && data.length > 0) {
+      labels = data.map((entry) => {
+        if (entry._id && entry._id.year && entry._id.month && entry._id.day) {
+          return new Date(
+            entry._id.year,
+            entry._id.month - 1,
+            entry._id.day
+          ).toLocaleDateString();
+        }
+        return "";
+      });
+      values = data.map((entry) => entry.avgWatts || 0);
+    }
 
     patternsChart.data.labels = labels;
     patternsChart.data.datasets[0].data = values;
