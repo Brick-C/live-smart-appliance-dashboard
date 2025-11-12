@@ -159,8 +159,6 @@ let lastUpdateTimestamp = Date.now();
 const updateIntervalMs = 5000; // API fetch interval (5 seconds)
 
 // --- CHART INITIALIZATION ---
-Chart.register(window["chartjs-plugin-zoom"]);
-Chart.register(ChartZoom);
 const powerCtx = document.getElementById("powerChart").getContext("2d");
 const powerChart = new Chart(powerCtx, {
   type: "line",
