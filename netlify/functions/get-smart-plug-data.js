@@ -14,7 +14,7 @@ const DEVICES = [
     type: "Smart Plug",
   },
   {
-    id: process.env.DEVICE_ID_2 || "device_id_2",
+    id: process.env.DEVICE_ID_2,
     name: "Computer",
     location: "Smart Plug",
     type: "Smart Plug",
@@ -51,7 +51,20 @@ exports.handler = async (event, context) => {
         };
       }
 
-      const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
+      // FIX: Get deviceId from request body for toggle commands
+      let deviceId = command.deviceId;
+
+      // If not in body, fall back to query params (for backward compatibility)
+      if (!deviceId) {
+        deviceId = event.queryStringParameters?.deviceId;
+      }
+
+      // If still no deviceId, use first device as default
+      if (!deviceId) {
+        deviceId = DEVICES[0].id;
+      }
+
+      console.log("Toggle command for device:", deviceId);
 
       // Get current status first with timeout
       const statusResponse = await Promise.race([
