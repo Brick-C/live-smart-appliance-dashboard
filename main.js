@@ -48,6 +48,364 @@ async function loadDevices() {
   }
 }
 
+// Add this at the beginning of the changeDevice function (around line 51)
+async function changeDevice(deviceId) {
+  console.log("=== DEVICE SWITCH DEBUG ===");
+  console.log("Previous device:", currentDeviceId);
+  console.log("New device:", deviceId);
+
+  if (deviceId === currentDeviceId) {
+    console.log("Same device selected, skipping switch");
+    return;
+  }
+
+  currentDeviceId = deviceId;
+  const device = devices.find((d) => d.id === deviceId);
+  console.log("Device object found:", device);
+
+  if (device) {
+    updateDeviceInfo(device);
+
+    // Reset data structures
+    powerData.labels = [];
+    powerData.watts = [];
+    powerData.kwh = [];
+    powerData.cumulativeKWh = 0;
+    analytics.dailyData.today = [];
+    analytics.dailyData.yesterday = [];
+    historicalData.hourlyData = [];
+    historicalData.dailyData = [];
+
+    // Reset charts
+    powerChart.data.labels = [];
+    powerChart.data.datasets[0].data = [];
+    powerChart.update();
+
+    energyChart.data.labels = [];
+    energyChart.data.datasets[0].data = [];
+    energyChart.update();
+
+    patternsChart.data.datasets[0].data = Array(24).fill(0);
+    patternsChart.update();
+
+    // Reset last update timestamp to calculate proper delta
+    lastUpdateTimestamp = Date.now();
+
+    // Load historical data for the new device
+    console.log("Fetching historical data for device:", currentDeviceId);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const historicalUrl =
+        "/.netlify/functions/store-energy-data?" +
+        new URLSearchParams({
+          deviceId: currentDeviceId,
+          startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        });
+
+      console.log("Historical data URL:", historicalUrl);
+
+      const response = await fetch(historicalUrl, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log("Historical data response status:", response.status);
+      if (response.ok) {
+        const historicalDataArray = await response.json();
+        console.log(
+          "Historical data received:",
+          historicalDataArray.length,
+          "records"
+        );
+
+        if (
+          Array.isArray(historicalDataArray) &&
+          historicalDataArray.length > 0
+        ) {
+          processHistoricalData(historicalDataArray);
+        } else {
+          console.warn("No historical data found for device:", currentDeviceId);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(
+          "Failed to load historical data:",
+          response.status,
+          errorText
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load historical data:", error);
+    }
+
+    // Load yesterday's data for cost comparison
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const startOfYesterday = new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate()
+      );
+      const endOfYesterday = new Date(startOfYesterday);
+      endOfYesterday.setDate(endOfYesterday.getDate() + 1);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(
+        "/.netlify/functions/store-energy-data?" +
+          new URLSearchParams({
+            deviceId: currentDeviceId,
+            startTime: startOfYesterday.toISOString(),
+            endTime: endOfYesterday.toISOString(),
+          }),
+        { signal: controller.signal }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const yesterdayData = await response.json();
+        console.log(
+          "Yesterday's data received:",
+          yesterdayData.length,
+          "records"
+        );
+        if (Array.isArray(yesterdayData) && yesterdayData.length > 0) {
+          analytics.dailyData.yesterday = yesterdayData.map((reading) => ({
+            time: new Date(reading.timestamp),
+            watts: reading.watts,
+            cost: reading.cost,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load yesterday's data:", error);
+    }
+
+    // Fetch new device data with timeout
+    console.log("Fetching real-time data for device:", currentDeviceId);
+    try {
+      await fetchDataAndRender();
+    } catch (error) {
+      console.error("Error fetching device data:", error);
+    }
+
+    // Update analytics and historical view
+    try {
+      await updateHistoricalView();
+    } catch (error) {
+      console.error("Error updating historical view:", error);
+    }
+
+    try {
+      await updateCostDisplays();
+    } catch (error) {
+      console.error("Error updating cost displays:", error);
+    }
+
+    // Update button state for current device
+    const button = document.getElementById("toggle-button");
+    const isOn = getDeviceState(currentDeviceId);
+    button.textContent = isOn ? "Turn OFF" : "Turn ON";
+
+    console.log("=== DEVICE SWITCH COMPLETE ===");
+  } else {
+    console.error("Device not found:", deviceId);
+  }
+}
+
+// Enhanced getRealTimeSmartPlugData with better error logging
+async function getRealTimeSmartPlugData() {
+  const apiEndpoint = `/.netlify/functions/get-smart-plug-data${
+    currentDeviceId ? `?deviceId=${currentDeviceId}` : ""
+  }`;
+
+  console.log("Fetching data from:", apiEndpoint);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    const response = await fetch(apiEndpoint, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    console.log("Response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("API error response:", errorText);
+      throw new Error(`API function failed: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log("Received data:", data);
+
+    // Check if data is valid
+    if (data.watts === 0) {
+      console.warn("⚠️ Received 0 watts - device may be OFF or not responding");
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      console.error("Smart plug data fetch timeout");
+      throw new Error("Smart plug data request timed out");
+    }
+    console.error("Error fetching smart plug data:", error);
+    throw error;
+  }
+}
+
+// Enhanced processAndRenderData with better logging
+async function processAndRenderData(newData) {
+  console.log("Processing data:", {
+    watts: newData.watts,
+    deviceId: currentDeviceId,
+    timestamp: new Date(newData.timestamp).toLocaleString(),
+  });
+
+  const now = new Date();
+  const timeLabel = now.toLocaleTimeString();
+
+  // Calculate Energy (kWh) consumed since the last update
+  const deltaMs = newData.timestamp - lastUpdateTimestamp;
+  lastUpdateTimestamp = newData.timestamp;
+
+  const powerInKW = newData.watts / 1000;
+  const timeInHours = deltaMs / 3600000;
+  let kwh_increment = powerInKW * timeInHours;
+
+  if (kwh_increment < 0) {
+    kwh_increment = 0;
+  }
+
+  console.log("Energy calculation:", {
+    deltaMs,
+    powerInKW,
+    timeInHours,
+    kwh_increment,
+  });
+
+  // Store the data in our database with retry logic
+  const maxRetries = 3;
+  let retryCount = 0;
+
+  while (retryCount < maxRetries) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const storeData = {
+        deviceId: currentDeviceId,
+        watts: newData.watts,
+        kWh: kwh_increment,
+        cost: newData.energy ? kwh_increment * newData.energy.ratePerKWh : 0,
+      };
+
+      console.log("Storing data to database:", storeData);
+
+      const response = await fetch("/.netlify/functions/store-energy-data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(storeData),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      console.log("Data stored successfully");
+      break; // Success, exit retry loop
+    } catch (error) {
+      retryCount++;
+      console.error(
+        `Failed to store energy data (attempt ${retryCount}/${maxRetries}):`,
+        error
+      );
+
+      if (retryCount === maxRetries) {
+        console.error("Max retries reached for storing energy data");
+        break;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(1000 * Math.pow(2, retryCount), 5000))
+      );
+    }
+  }
+
+  // Update Data Arrays (for charts)
+  powerData.labels.push(timeLabel);
+  powerData.watts.push(newData.watts);
+  powerData.kwh.push(kwh_increment);
+
+  // Update Cumulative Energy
+  powerData.cumulativeKWh += kwh_increment;
+
+  if (powerData.cumulativeKWh < 0) {
+    powerData.cumulativeKWh = 0;
+  }
+
+  // Manage Data History
+  if (powerData.labels.length > MAX_DATA_POINTS) {
+    powerData.labels.shift();
+    powerData.watts.shift();
+    powerData.kwh.shift();
+  }
+
+  // Update Charts
+  powerChart.update("none");
+  energyChart.update("none");
+
+  // Update dashboard stats
+  const currentWattsElement = document.getElementById("current-watts");
+  if (currentWattsElement) {
+    currentWattsElement.textContent = `${newData.watts} W`;
+  }
+
+  const totalKwhElement = document.getElementById("total-kwh");
+  if (totalKwhElement) {
+    const displayKwh = Math.max(0, powerData.cumulativeKWh);
+    totalKwhElement.textContent = `${displayKwh.toFixed(4)} kWh`;
+  }
+
+  const lastUpdateElement = document.getElementById("last-update");
+  if (lastUpdateElement) {
+    lastUpdateElement.textContent = timeLabel;
+  }
+
+  // Update cost information
+  if (newData.energy) {
+    document.getElementById(
+      "rate-per-kwh"
+    ).textContent = `৳${newData.energy.ratePerKWh.toFixed(2)}/kWh`;
+    document.getElementById(
+      "hourly-cost"
+    ).textContent = `৳${newData.energy.hourlyCost.toFixed(3)}/hr`;
+    document.getElementById(
+      "daily-cost"
+    ).textContent = `৳${newData.energy.projectedDailyCost.toFixed(2)}`;
+  }
+
+  // Update historical data and analytics
+  updateHistoricalData(newData);
+  updateAnalytics(newData);
+  updateCostDisplays();
+}
+
 async function changeDevice(deviceId) {
   if (deviceId === currentDeviceId) return;
 
