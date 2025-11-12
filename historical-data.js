@@ -22,29 +22,31 @@ async function getHourlyData(deviceId, date = null) {
     return await response.json();
   } catch (error) {
     console.error("Error fetching hourly data:", error);
-    return null;
+    return [];
   }
 }
 
-async function getWeeklyData(deviceId, startDate = null, endDate = null) {
+// Get aggregated stats for a specific time period
+async function getAggregatedStats(deviceId, startTime, endTime) {
   try {
-    // Default to last 7 days if dates not provided
-    const end = endDate ? new Date(endDate) : new Date();
-    const start = startDate
-      ? new Date(startDate)
-      : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-
     const response = await fetch(
-      `/.netlify/functions/store-energy-data?` +
+      `/.netlify/functions/get-historical-data?` +
         new URLSearchParams({
           deviceId,
-          startTime: start.toISOString(),
-          endTime: end.toISOString(),
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          type: "stats",
         })
     );
+
+    if (!response.ok) {
+      console.error("Failed to fetch aggregated stats");
+      return null;
+    }
+
     return await response.json();
   } catch (error) {
-    console.error("Error fetching weekly data:", error);
+    console.error("Error fetching aggregated stats:", error);
     return null;
   }
 }
@@ -54,35 +56,88 @@ async function updateHistoricalView() {
   const timeframe = document.getElementById("history-timeframe").value;
 
   try {
-    let data;
+    let statsData = null;
+    let chartData = null;
+
     switch (timeframe) {
       case "today": {
-        data = await getHourlyData(currentDeviceId, new Date());
+        const today = new Date();
+        const startOfDay = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate()
+        );
+        const now = new Date();
+
+        // Get aggregated stats from database
+        statsData = await getAggregatedStats(currentDeviceId, startOfDay, now);
+
+        // Get hourly breakdown for charts
+        chartData = await getHourlyData(currentDeviceId, today);
         break;
       }
       case "yesterday": {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        data = await getHourlyData(currentDeviceId, yesterday);
+        const startOfYesterday = new Date(
+          yesterday.getFullYear(),
+          yesterday.getMonth(),
+          yesterday.getDate()
+        );
+        const endOfYesterday = new Date(startOfYesterday);
+        endOfYesterday.setDate(endOfYesterday.getDate() + 1);
+
+        // Get aggregated stats from database
+        statsData = await getAggregatedStats(
+          currentDeviceId,
+          startOfYesterday,
+          endOfYesterday
+        );
+
+        // Get hourly breakdown for charts
+        chartData = await getHourlyData(currentDeviceId, yesterday);
         break;
       }
       case "last7": {
-        data = await getWeeklyData(currentDeviceId);
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+
+        // Get aggregated stats from database
+        statsData = await getAggregatedStats(
+          currentDeviceId,
+          startDate,
+          endDate
+        );
+
+        // Get daily breakdown for charts
         break;
       }
       case "last30": {
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 30);
-        data = await getWeeklyData(currentDeviceId, startDate, endDate);
+
+        // Get aggregated stats from database
+        statsData = await getAggregatedStats(
+          currentDeviceId,
+          startDate,
+          endDate
+        );
+
+        // Get daily breakdown for charts
         break;
       }
     }
 
-    if (data && Array.isArray(data)) {
-      // Update charts and statistics
-      updateHistoricalCharts(data, timeframe);
-      updateHistoricalStats(data);
+    if (statsData) {
+      // Update stats using database aggregation
+      updateHistoricalStats(statsData);
+    }
+
+    if (chartData) {
+      // Update charts with detailed data
+      updateHistoricalCharts(chartData, timeframe);
     }
   } catch (error) {
     console.error("Error updating historical view:", error);
@@ -120,21 +175,19 @@ function updateHistoricalCharts(data, timeframe) {
   }
 }
 
-// Function to update historical statistics
-function updateHistoricalStats(data) {
+// Function to update historical statistics from aggregated database data
+function updateHistoricalStats(statsData) {
   let totalKWh = 0;
   let totalCost = 0;
   let maxWatts = 0;
   let avgWatts = 0;
 
-  if (Array.isArray(data)) {
-    data.forEach((entry) => {
-      totalKWh += entry.totalKWh || 0;
-      totalCost += entry.totalCost || 0;
-      maxWatts = Math.max(maxWatts, entry.maxWatts || 0);
-      avgWatts += entry.avgWatts || 0;
-    });
-    avgWatts = avgWatts / data.length;
+  if (statsData) {
+    // statsData comes directly from database aggregation
+    totalKWh = statsData.totalKWh || 0;
+    totalCost = statsData.totalCost || 0;
+    maxWatts = statsData.maxWatts || 0;
+    avgWatts = statsData.avgWatts || 0;
   }
 
   // Update the UI elements
