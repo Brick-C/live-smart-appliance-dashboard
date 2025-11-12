@@ -22,7 +22,7 @@ const DEVICES = [
 ];
 
 exports.handler = async (event, context) => {
-  // Initialize Tuya client with v2.0 API
+  // Initialize Tuya client
   const ACCESS_ID = process.env.TUYA_ACCESS_ID;
   const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 
@@ -46,7 +46,6 @@ exports.handler = async (event, context) => {
       const command = JSON.parse(event.body);
       console.log("Toggle command received:", command);
 
-      // Extract deviceId from request body (for POST) or query params (for GET)
       const deviceId =
         command.deviceId ||
         event.queryStringParameters?.deviceId ||
@@ -60,76 +59,262 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // === V2.0 API: Query current device status ===
-      console.log("Querying device properties using v2.0 API...");
-      const statusResponse = await Promise.race([
-        tuya.request({
+      // === COMPREHENSIVE DEVICE ANALYSIS ===
+      console.log("=== COMPREHENSIVE DEVICE ANALYSIS ===");
+
+      // Try multiple API endpoints to get full device info
+      const apiEndpoints = [
+        // Method 1: Shadow properties (v2.0)
+        {
+          name: "Shadow Properties",
+          endpoint: `/v2.0/cloud/thing/${deviceId}/shadow/properties`,
           method: "GET",
-          path: `/v2.0/cloud/thing/${deviceId}/shadow/properties`,
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Status request timeout")), 8000)
-        ),
-      ]);
+        },
+        // Method 2: Device status (traditional v1.0 but might still work)
+        {
+          name: "Device Status (v1.0)",
+          endpoint: `/v1.0/devices/${deviceId}/status`,
+          method: "GET",
+        },
+        // Method 3: Device info
+        {
+          name: "Device Info",
+          endpoint: `/v1.0/devices/${deviceId}`,
+          method: "GET",
+        },
+        // Method 4: Thing model (for property codes)
+        {
+          name: "Thing Model",
+          endpoint: `/v2.0/cloud/thing/${deviceId}/model`,
+          method: "GET",
+        },
+      ];
 
-      console.log(
-        "V2.0 Status response:",
-        JSON.stringify(statusResponse, null, 2)
-      );
+      let allResponses = {};
 
-      // Check if the device responded correctly
-      if (!statusResponse.success) {
-        throw new Error(
-          `Tuya API v2.0 request failed: ${
-            statusResponse.msg || "Unknown error"
-          }`
-        );
+      for (const api of apiEndpoints) {
+        try {
+          console.log(`Trying ${api.name}...`);
+          const response = await Promise.race([
+            tuya.request({
+              method: api.method,
+              path: api.endpoint,
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`${api.name} timeout`)), 5000)
+            ),
+          ]);
+
+          console.log(
+            `${api.name} Response:`,
+            JSON.stringify(response, null, 2)
+          );
+          allResponses[api.name] = response;
+
+          if (response.success) {
+            console.log(`${api.name} SUCCESS!`);
+          } else {
+            console.log(`${api.name} FAILED:`, response.msg || "Unknown error");
+          }
+        } catch (error) {
+          console.log(`${api.name} ERROR:`, error.message);
+          allResponses[api.name] = { error: error.message };
+        }
       }
 
-      // Extract switch status from v2.0 response structure
-      const deviceState = statusResponse.result?.state || {};
-      const currentSwitchState =
-        deviceState.switch_1?.value || deviceState.switch_1;
-      const newState = !currentSwitchState; // Toggle the state
+      // === EXTRACT TOGGLEABLE PROPERTIES ===
+      console.log("=== EXTRACTING TOGGLEABLE PROPERTIES ===");
 
-      console.log("Current switch state:", currentSwitchState);
-      console.log("New switch state:", newState);
+      let toggleProperty = null;
+      let currentState = null;
 
-      // === V2.0 API: Send toggle command ===
-      console.log("Sending toggle command via v2.0 API...");
-      await Promise.race([
-        tuya.request({
-          method: "POST",
-          path: `/v2.0/cloud/thing/${deviceId}/shadow/properties/issue`,
-          body: {
-            properties: [
-              {
-                code: "switch_1",
-                value: newState,
+      // Check shadow properties for switch state
+      const shadowResponse = allResponses["Shadow Properties"];
+      if (shadowResponse && shadowResponse.success && shadowResponse.result) {
+        const state = shadowResponse.result.state || {};
+        const desired = shadowResponse.result.desired || {};
+        const reported = shadowResponse.result.reported || {};
+
+        console.log("Shadow State:", state);
+        console.log("Desired State:", desired);
+        console.log("Reported State:", reported);
+
+        // Look for switch properties
+        const switchCandidates = [
+          "switch",
+          "switch_1",
+          "switch_led",
+          "switch_1_1",
+        ];
+
+        for (const switchCode of switchCandidates) {
+          const value =
+            state[switchCode]?.value ||
+            state[switchCode] ||
+            desired[switchCode]?.value ||
+            desired[switchCode] ||
+            reported[switchCode]?.value ||
+            reported[switchCode];
+
+          if (value !== undefined) {
+            console.log(`Found switch property '${switchCode}':`, value);
+            toggleProperty = switchCode;
+            currentState = value;
+            break;
+          }
+        }
+      }
+
+      // If not found in shadow, try traditional status
+      if (!toggleProperty) {
+        const statusResponse = allResponses["Device Status (v1.0)"];
+        if (statusResponse && statusResponse.success && statusResponse.result) {
+          console.log("Traditional Status Response:", statusResponse.result);
+
+          const switchCandidates = [
+            "switch",
+            "switch_1",
+            "switch_led",
+            "switch_1_1",
+          ];
+
+          for (const switchCode of switchCandidates) {
+            const status = statusResponse.result.find(
+              (x) => x.code === switchCode
+            );
+            if (status) {
+              console.log(
+                `Found switch property '${switchCode}' in status:`,
+                status.value
+              );
+              toggleProperty = switchCode;
+              currentState = status.value;
+              break;
+            }
+          }
+        }
+      }
+
+      // If still no switch found, try common ones
+      if (!toggleProperty) {
+        console.log(
+          "No standard switch found, trying common property codes..."
+        );
+        const commonSwitches = [
+          "switch_1",
+          "switch",
+          "switch_led",
+          "power_switch",
+        ];
+
+        for (const switchCode of commonSwitches) {
+          console.log(`Trying common switch code: ${switchCode}`);
+          try {
+            const response = await tuya.request({
+              method: "POST",
+              path: `/v2.0/cloud/thing/${deviceId}/shadow/properties/issue`,
+              body: {
+                properties: [
+                  {
+                    code: switchCode,
+                    value: true, // Try to turn it ON
+                  },
+                ],
               },
-            ],
-          },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Toggle command timeout")), 8000)
-        ),
-      ]);
+            });
 
-      console.log("Toggle command sent successfully");
+            if (response.success) {
+              console.log(
+                `SUCCESS with switch code '${switchCode}'! Device turned ON`
+              );
+              toggleProperty = switchCode;
+              currentState = true;
 
-      return {
-        statusCode: 200,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          success: true,
-          state: newState,
-          deviceId: deviceId,
-          message: "Device toggled via v2.0 API",
-        }),
-      };
+              // Send success response
+              return {
+                statusCode: 200,
+                headers: {
+                  "Access-Control-Allow-Origin": "*",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  success: true,
+                  state: true,
+                  deviceId: deviceId,
+                  switchProperty: switchProperty,
+                  message: `Device toggled via v2.0 API using switch '${switchCode}'`,
+                  debug: allResponses,
+                }),
+              };
+            }
+          } catch (error) {
+            console.log(`Switch code '${switchCode}' failed:`, error.message);
+          }
+        }
+      }
+
+      // If we found a switch property, toggle it
+      if (toggleProperty) {
+        const newState = !currentState;
+        console.log(
+          `Toggling ${toggleProperty} from ${currentState} to ${newState}`
+        );
+
+        try {
+          await Promise.race([
+            tuya.request({
+              method: "POST",
+              path: `/v2.0/cloud/thing/${deviceId}/shadow/properties/issue`,
+              body: {
+                properties: [
+                  {
+                    code: toggleProperty,
+                    value: newState,
+                  },
+                ],
+              },
+            }),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Toggle command timeout")),
+                8000
+              )
+            ),
+          ]);
+
+          console.log("Toggle command sent successfully");
+
+          return {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              success: true,
+              state: newState,
+              deviceId: deviceId,
+              switchProperty: toggleProperty,
+              previousState: currentState,
+              message: "Device toggled successfully",
+              debug: allResponses,
+            }),
+          };
+        } catch (error) {
+          throw new Error(`Failed to toggle device: ${error.message}`);
+        }
+      } else {
+        // No toggleable property found
+        return {
+          statusCode: 404,
+          body: JSON.stringify({
+            error: "No toggleable switch property found on this device",
+            foundSwitchProperty: null,
+            availableResponses: Object.keys(allResponses),
+            debug: allResponses,
+          }),
+        };
+      }
     } catch (error) {
       console.error("Toggle error:", error);
       return {
@@ -170,134 +355,108 @@ exports.handler = async (event, context) => {
     const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
     const device = DEVICES.find((d) => d.id === deviceId) || DEVICES[0];
 
-    console.log("=== V2.0 API: Querying device properties ===");
+    console.log("=== COMPREHENSIVE POWER DATA ANALYSIS ===");
     console.log("Device ID:", deviceId);
     console.log("Device info:", device);
 
-    // === V2.0 API: Get device properties and power data ===
-    const response = await Promise.race([
-      tuya.request({
+    // Try multiple methods to get power data
+    const powerDataMethods = [
+      {
+        name: "Shadow Properties (v2.0)",
         method: "GET",
         path: `/v2.0/cloud/thing/${deviceId}/shadow/properties`,
-      }),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Device properties request timeout")),
-          8000
-        )
-      ),
-    ]);
+      },
+      {
+        name: "Traditional Status (v1.0)",
+        method: "GET",
+        path: `/v1.0/devices/${deviceId}/status`,
+      },
+      {
+        name: "Device Properties",
+        method: "GET",
+        path: `/v1.0/devices/${deviceId}/functions`,
+      },
+    ];
 
-    console.log("=== V2.0 API Response ===");
-    console.log("Full response:", JSON.stringify(response, null, 2));
+    let allPowerData = {};
+    let bestPowerData = null;
 
-    if (!response.success) {
-      throw new Error(
-        `Tuya v2.0 API request failed: ${response.msg || "Unknown error"}`
-      );
-    }
+    for (const method of powerDataMethods) {
+      try {
+        console.log(`Trying ${method.name}...`);
+        const response = await Promise.race([
+          tuya.request({
+            method: method.method,
+            path: method.path,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`${method.name} timeout`)), 8000)
+          ),
+        ]);
 
-    // Extract device state from v2.0 response structure
-    const deviceState = response.result?.state || {};
-    const desiredState = response.result?.desired || {};
-    const reportedState = response.result?.reported || {};
+        console.log(
+          `${method.name} Response:`,
+          JSON.stringify(response, null, 2)
+        );
+        allPowerData[method.name] = response;
 
-    console.log("Device state (shadow):", deviceState);
-    console.log("Desired state:", desiredState);
-    console.log("Reported state:", reportedState);
+        if (response.success) {
+          // Extract power data from this method
+          let extractedPowerData = extractPowerData(method.name, response);
+          if (extractedPowerData) {
+            console.log(
+              `Power data extracted from ${method.name}:`,
+              extractedPowerData
+            );
 
-    // Extract power-related properties from v2.0 structure
-    const switchState =
-      deviceState.switch_1?.value ||
-      deviceState.switch_1 ||
-      reportedState.switch_1?.value;
-    const currentPower =
-      deviceState.cur_power?.value ||
-      deviceState.cur_power ||
-      reportedState.cur_power?.value;
-    const voltage =
-      deviceState.cur_voltage?.value ||
-      deviceState.cur_voltage ||
-      reportedState.cur_voltage?.value;
-    const current =
-      deviceState.cur_current?.value ||
-      deviceState.cur_current ||
-      reportedState.cur_current?.value;
-
-    console.log("=== POWER DATA ANALYSIS ===");
-    console.log("Switch state:", switchState);
-    console.log("Current power (raw):", currentPower);
-    console.log("Voltage:", voltage);
-    console.log("Current:", current);
-
-    // Determine if device is on
-    const isDeviceOn = Boolean(switchState);
-
-    // Process power data (convert to watts)
-    let watts = 0;
-    if (isDeviceOn && currentPower) {
-      // Different devices may use different scaling factors
-      // Test with common scaling factors
-      if (currentPower > 10000) {
-        watts = currentPower / 1000; // If value is in mW
-      } else if (currentPower > 1000) {
-        watts = currentPower / 10; // If value is in cW (centiwatts)
-      } else {
-        watts = currentPower; // If value is already in W
-      }
-
-      console.log("Processed watts:", watts);
-    }
-
-    // If still no power data, try alternative property codes for power monitoring
-    if (watts === 0 && isDeviceOn) {
-      console.log("Trying alternative power property codes...");
-
-      // Try common alternative power monitoring codes
-      const powerCodes = [
-        "power",
-        "pwr",
-        "electric_power",
-        "active_power",
-        "power_consumption",
-      ];
-
-      for (const code of powerCodes) {
-        const altPower =
-          deviceState[code]?.value ||
-          deviceState[code] ||
-          reportedState[code]?.value;
-        if (altPower && altPower > 0) {
-          console.log(`Found power data with code ${code}:`, altPower);
-          watts = altPower > 1000 ? altPower / 10 : altPower;
-          break;
+            // Prefer this method if it has power data and the previous best doesn't
+            if (!bestPowerData || extractedPowerData.watts > 0) {
+              bestPowerData = {
+                method: method.name,
+                data: extractedPowerData,
+                rawResponse: response,
+              };
+            }
+          }
         }
+      } catch (error) {
+        console.log(`${method.name} failed:`, error.message);
+        allPowerData[method.name] = { error: error.message };
       }
     }
 
-    // Enhanced debugging for device analysis
-    console.log("=== DEVICE ANALYSIS COMPLETE ===");
-    console.log("Device is ON:", isDeviceOn);
-    console.log("Power draw:", watts, "W");
-    console.log("Raw power value:", currentPower);
+    // If we have power data, use it; otherwise use best available
+    let finalPowerData = bestPowerData?.data || {
+      watts: 0,
+      isDeviceOn: false,
+      rawPowerValue: null,
+      powerPropertyCode: null,
+      switchState: null,
+    };
+
+    console.log("=== FINAL POWER ANALYSIS ===");
+    console.log("Selected method:", bestPowerData?.method || "None");
+    console.log("Final power data:", finalPowerData);
 
     // Calculate costs
     const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 9.5;
-    const kW = watts / 1000;
+    const kW = finalPowerData.watts / 1000;
     const hourlyRate = kW * RATE_PER_KWH;
     const dailyCost = hourlyRate * 24;
 
-    // Prepare comprehensive response
+    // Prepare response
     const responseData = {
-      watts: Math.round(watts * 10) / 10, // Round to 1 decimal place
+      watts: finalPowerData.watts,
       device: {
         id: device.id,
         name: device.name,
         location: device.location,
         type: device.type,
         online: true,
-        isOn: isDeviceOn,
-        rawPowerValue: currentPower,
+        isOn: finalPowerData.isDeviceOn,
+        rawPowerValue: finalPowerData.rawPowerValue,
+        powerPropertyCode: finalPowerData.powerPropertyCode,
+        switchState: finalPowerData.switchState,
         v2APIUsed: true,
       },
       timestamp: Date.now(),
@@ -309,14 +468,14 @@ exports.handler = async (event, context) => {
       },
       debug: {
         v2API: true,
-        deviceState: deviceState,
-        switchValue: switchState,
-        powerValue: currentPower,
-        processingApplied: currentPower ? "yes" : "no",
+        bestMethod: bestPowerData?.method || "None",
+        allMethods: Object.keys(allPowerData),
+        allResponses: allPowerData,
+        selectedData: finalPowerData,
       },
     };
 
-    console.log("=== FINAL RESPONSE ===");
+    console.log("=== COMPREHENSIVE FINAL RESPONSE ===");
     console.log(JSON.stringify(responseData, null, 2));
 
     return {
@@ -328,7 +487,7 @@ exports.handler = async (event, context) => {
       body: JSON.stringify(responseData),
     };
   } catch (error) {
-    console.error("=== V2.0 API ERROR ===");
+    console.error("=== COMPREHENSIVE API ERROR ===");
     console.error("Error message:", error.message);
     console.error("Error stack:", error.stack);
 
@@ -342,3 +501,140 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+// Helper function to extract power data from different API responses
+function extractPowerData(methodName, response) {
+  let watts = 0;
+  let isDeviceOn = false;
+  let rawPowerValue = null;
+  let powerPropertyCode = null;
+  let switchState = null;
+
+  try {
+    if (methodName === "Shadow Properties (v2.0)") {
+      const deviceState = response.result?.state || {};
+      const reportedState = response.result?.reported || {};
+      const desiredState = response.result?.desired || {};
+
+      console.log("Analyzing v2.0 shadow properties...");
+
+      // Look for switch state
+      const switchCandidates = [
+        "switch_1",
+        "switch",
+        "switch_led",
+        "power_switch",
+      ];
+      for (const code of switchCandidates) {
+        const switchValue =
+          deviceState[code]?.value ||
+          deviceState[code] ||
+          reportedState[code]?.value ||
+          reportedState[code] ||
+          desiredState[code]?.value ||
+          desiredState[code];
+
+        if (switchValue !== undefined) {
+          switchState = switchValue;
+          isDeviceOn = Boolean(switchValue);
+          break;
+        }
+      }
+
+      // Look for power data
+      const powerCandidates = [
+        "cur_power",
+        "power",
+        "pwr",
+        "electric_power",
+        "active_power",
+        "power_consumption",
+      ];
+      for (const code of powerCandidates) {
+        const powerValue =
+          deviceState[code]?.value ||
+          deviceState[code] ||
+          reportedState[code]?.value ||
+          reportedState[code] ||
+          desiredState[code]?.value ||
+          desiredState[code];
+
+        if (powerValue !== undefined && powerValue > 0) {
+          console.log(`Found power data with code '${code}':`, powerValue);
+          rawPowerValue = powerValue;
+          powerPropertyCode = code;
+
+          // Process power value
+          if (powerValue > 10000) {
+            watts = powerValue / 1000; // mW to W
+          } else if (powerValue > 1000) {
+            watts = powerValue / 10; // cW to W
+          } else {
+            watts = powerValue; // Already in W
+          }
+
+          console.log(`Processed power: ${powerValue} -> ${watts}W`);
+          break;
+        }
+      }
+    } else if (methodName === "Traditional Status (v1.0)") {
+      console.log("Analyzing v1.0 status response...");
+
+      if (Array.isArray(response.result)) {
+        // Look for switch and power properties
+        for (const item of response.result) {
+          const code = item.code;
+          const value = item.value;
+
+          // Check for switch
+          if (
+            ["switch_1", "switch", "switch_led", "power_switch"].includes(code)
+          ) {
+            switchState = value;
+            isDeviceOn = Boolean(value);
+          }
+
+          // Check for power
+          if (
+            [
+              "cur_power",
+              "power",
+              "pwr",
+              "electric_power",
+              "active_power",
+              "power_consumption",
+            ].includes(code)
+          ) {
+            rawPowerValue = value;
+            powerPropertyCode = code;
+
+            // Process power value
+            if (value > 10000) {
+              watts = value / 1000; // mW to W
+            } else if (value > 1000) {
+              watts = value / 10; // cW to W
+            } else {
+              watts = value; // Already in W
+            }
+          }
+        }
+      }
+    } else if (methodName === "Device Properties") {
+      console.log("Analyzing device properties/functions...");
+      // This might give us the available property codes
+      if (response.result && Array.isArray(response.result)) {
+        console.log("Available property codes:", response.result);
+      }
+    }
+  } catch (error) {
+    console.error(`Error extracting power data from ${methodName}:`, error);
+  }
+
+  return {
+    watts: Math.round(watts * 10) / 10,
+    isDeviceOn,
+    rawPowerValue,
+    powerPropertyCode,
+    switchState,
+  };
+}
