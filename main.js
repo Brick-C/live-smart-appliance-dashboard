@@ -183,11 +183,11 @@ const powerChart = new Chart(powerCtx, {
     animation: false,
     scales: {
       y: {
-        title: { display: true, text: "Watts" },
+        title: { display: true, text: "Watts", fontSize: 14 },
         beginAtZero: true,
       },
       x: {
-        title: { display: true, text: "Time" },
+        title: { display: true, text: "Time", fontSize: 14 },
         display: true,
       },
     },
@@ -245,11 +245,11 @@ const energyChart = new Chart(energyCtx, {
     animation: false,
     scales: {
       y: {
-        title: { display: true, text: "Energy (kWh)" },
+        title: { display: true, text: "Energy (kWh)", fontSize: 14 },
         beginAtZero: true,
       },
       x: {
-        title: { display: true, text: "Time" },
+        title: { display: true, text: "Time", fontSize: 14 },
         display: true,
       },
     },
