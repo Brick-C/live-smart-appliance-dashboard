@@ -115,6 +115,7 @@ exports.handler = async (event, context) => {
 
       return {
         statusCode: 200,
+        headers,
         body: JSON.stringify({ message: "Reading stored successfully" }),
       };
     } else {
@@ -122,16 +123,30 @@ exports.handler = async (event, context) => {
       const { deviceId, startTime, endTime } =
         event.queryStringParameters || {};
 
+      // FIX: Properly construct the query object
       let query = {};
+
       if (deviceId) {
         query.deviceId = deviceId;
       }
-      if (startTime) {
-        query.timestamp = { $gte: new Date(startTime) };
+
+      // Build timestamp query correctly to avoid undefined spread
+      if (startTime || endTime) {
+        query.timestamp = {};
+        if (startTime) {
+          query.timestamp.$gte = new Date(startTime);
+        }
+        if (endTime) {
+          query.timestamp.$lte = new Date(endTime);
+        }
       }
-      if (endTime) {
-        query.timestamp = { ...query.timestamp, $lte: new Date(endTime) };
-      }
+
+      console.log(
+        "Query for device:",
+        deviceId,
+        "Query:",
+        JSON.stringify(query)
+      );
 
       const historicalData = await readings
         .find(query)
@@ -139,11 +154,13 @@ exports.handler = async (event, context) => {
         .limit(1000)
         .toArray();
 
+      console.log(
+        `Found ${historicalData.length} readings for device ${deviceId}`
+      );
+
       return {
         statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(historicalData),
       };
     }
@@ -174,6 +191,7 @@ exports.handler = async (event, context) => {
       }),
     };
   } finally {
+    // Keep connection cached for subsequent requests
     // if (client) {
     //   try {
     //     await Promise.race([

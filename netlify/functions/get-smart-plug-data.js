@@ -88,12 +88,6 @@ exports.handler = async (event, context) => {
         ),
       ]);
 
-      console.log("Using Tuya region:", "https://openapi.tuyaeu.com");
-      console.log("ACCESS_ID present:", !!ACCESS_ID);
-      console.log("ACCESS_SECRET present:", !!ACCESS_SECRET);
-
-      console.log("Tuya API Response:", response);
-
       return {
         statusCode: 200,
         headers: {
