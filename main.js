@@ -1,3 +1,5 @@
+import zoomPlugin from "chartjs-plugin-zoom";
+
 // Device management
 let currentDeviceId = null;
 let devices = [];
