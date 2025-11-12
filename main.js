@@ -83,17 +83,28 @@ async function changeDevice(deviceId) {
 
     // Load historical data for the new device
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(
         "/.netlify/functions/store-energy-data?" +
           new URLSearchParams({
             deviceId: currentDeviceId,
             startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          })
+          }),
+        { signal: controller.signal }
       );
 
+      clearTimeout(timeoutId);
+
       if (response.ok) {
-        const historicalData = await response.json();
-        processHistoricalData(historicalData);
+        const historicalDataArray = await response.json();
+        if (
+          Array.isArray(historicalDataArray) &&
+          historicalDataArray.length > 0
+        ) {
+          processHistoricalData(historicalDataArray);
+        }
       }
     } catch (error) {
       console.error("Failed to load historical data:", error);
@@ -111,14 +122,20 @@ async function changeDevice(deviceId) {
       const endOfYesterday = new Date(startOfYesterday);
       endOfYesterday.setDate(endOfYesterday.getDate() + 1);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(
         "/.netlify/functions/store-energy-data?" +
           new URLSearchParams({
             deviceId: currentDeviceId,
             startTime: startOfYesterday.toISOString(),
             endTime: endOfYesterday.toISOString(),
-          })
+          }),
+        { signal: controller.signal }
       );
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const yesterdayData = await response.json();
@@ -134,12 +151,25 @@ async function changeDevice(deviceId) {
       console.error("Failed to load yesterday's data:", error);
     }
 
-    // Fetch new device data
-    await fetchDataAndRender();
+    // Fetch new device data with timeout
+    try {
+      await fetchDataAndRender();
+    } catch (error) {
+      console.error("Error fetching device data:", error);
+    }
 
     // Update analytics and historical view
-    await updateHistoricalView();
-    updateCostDisplays();
+    try {
+      await updateHistoricalView();
+    } catch (error) {
+      console.error("Error updating historical view:", error);
+    }
+
+    try {
+      await updateCostDisplays();
+    } catch (error) {
+      console.error("Error updating cost displays:", error);
+    }
 
     // Update button state for current device
     const button = document.getElementById("toggle-button");
@@ -240,17 +270,6 @@ const energyChart = new Chart(energyCtx, {
     plugins: {
       legend: { display: false },
       title: { display: false },
-      zoom: {
-        pan: {
-          enabled: true,
-          mode: "x",
-        },
-        zoom: {
-          wheel: { enabled: true },
-          pinch: { enabled: true },
-          mode: "x",
-        },
-      },
     },
   },
 });
@@ -303,7 +322,12 @@ async function processAndRenderData(newData) {
 
   const powerInKW = newData.watts / 1000;
   const timeInHours = deltaMs / 3600000;
-  const kwh_increment = powerInKW * timeInHours;
+  let kwh_increment = powerInKW * timeInHours;
+
+  // Ensure kWh is never negative (can happen with very small time deltas or rounding)
+  if (kwh_increment < 0) {
+    kwh_increment = 0;
+  }
 
   // Store the data in our database with retry logic
   const maxRetries = 3;
@@ -361,6 +385,11 @@ async function processAndRenderData(newData) {
   // 3. Update Cumulative Energy
   powerData.cumulativeKWh += kwh_increment;
 
+  // Ensure cumulative energy is never negative
+  if (powerData.cumulativeKWh < 0) {
+    powerData.cumulativeKWh = 0;
+  }
+
   // 4. Manage Data History
   if (powerData.labels.length > MAX_DATA_POINTS) {
     powerData.labels.shift();
@@ -380,7 +409,8 @@ async function processAndRenderData(newData) {
 
   const totalKwhElement = document.getElementById("total-kwh");
   if (totalKwhElement) {
-    totalKwhElement.textContent = `${powerData.cumulativeKWh.toFixed(4)} kWh`;
+    const displayKwh = Math.max(0, powerData.cumulativeKWh);
+    totalKwhElement.textContent = `${displayKwh.toFixed(4)} kWh`;
   }
 
   const lastUpdateElement = document.getElementById("last-update");
@@ -1013,23 +1043,32 @@ function updateDailySummary(newData) {
   );
   const projectedDailyCost = currentDayCost + hourlyCost * hoursRemaining;
 
+  // Ensure all values are non-negative
+  const cumulativeKwh = Math.max(0, powerData.cumulativeKWh);
+  const totalCost = Math.max(
+    0,
+    cumulativeKwh * (newData.energy?.ratePerKWh || 0.15)
+  );
+  const projectedCost = Math.max(0, projectedDailyCost);
+  const hourlyRate = Math.max(0, hourlyCost);
+
   // Update summary displays
   document.getElementById("peak-usage").textContent = `${peakUsage.toFixed(
     1
   )}W`;
   document.getElementById("avg-usage").textContent = `${avgUsage.toFixed(1)}W`;
-  document.getElementById(
-    "total-usage"
-  ).textContent = `${powerData.cumulativeKWh.toFixed(3)} kWh`;
-  document.getElementById("total-cost").textContent = `৳${(
-    powerData.cumulativeKWh * (newData.energy?.ratePerKWh || 0.15)
-  ).toFixed(2)}`;
-  document.getElementById("hourly-cost").textContent = `৳${hourlyCost.toFixed(
+  document.getElementById("total-usage").textContent = `${cumulativeKwh.toFixed(
+    3
+  )} kWh`;
+  document.getElementById("total-cost").textContent = `৳${totalCost.toFixed(
+    2
+  )}`;
+  document.getElementById("hourly-cost").textContent = `৳${hourlyRate.toFixed(
     3
   )}/hr`;
-  document.getElementById(
-    "daily-cost"
-  ).textContent = `৳${projectedDailyCost.toFixed(2)}`;
+  document.getElementById("daily-cost").textContent = `৳${projectedCost.toFixed(
+    2
+  )}`;
 
   // Check if the device is off and skip calculations
   const isDeviceOn = getDeviceState(currentDeviceId);
