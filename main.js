@@ -87,7 +87,7 @@ async function changeDevice(deviceId) {
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch(
-        "/.netlify/functions/store-energy-data?" +
+        "/.netlify/functions/get-smart-plug-data?" +
           new URLSearchParams({
             deviceId: currentDeviceId,
             startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
