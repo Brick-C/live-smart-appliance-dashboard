@@ -11,17 +11,27 @@ async function getHourlyData(deviceId, date = null) {
     const endOfDay = new Date(startOfDay);
     endOfDay.setDate(endOfDay.getDate() + 1);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
     const response = await fetch(
       `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
           startTime: startOfDay.toISOString(),
           endTime: endOfDay.toISOString(),
-        })
+        }),
+      { signal: controller.signal }
     );
+
+    clearTimeout(timeoutId);
     return await response.json();
   } catch (error) {
-    console.error("Error fetching hourly data:", error);
+    if (error.name === "AbortError") {
+      console.error("Hourly data fetch timeout");
+    } else {
+      console.error("Error fetching hourly data:", error);
+    }
     return [];
   }
 }
@@ -29,6 +39,9 @@ async function getHourlyData(deviceId, date = null) {
 // Get aggregated stats for a specific time period
 async function getAggregatedStats(deviceId, startTime, endTime) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
     const response = await fetch(
       `/.netlify/functions/get-historical-data?` +
         new URLSearchParams({
@@ -36,8 +49,11 @@ async function getAggregatedStats(deviceId, startTime, endTime) {
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
           type: "stats",
-        })
+        }),
+      { signal: controller.signal }
     );
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error("Failed to fetch aggregated stats");
@@ -46,7 +62,11 @@ async function getAggregatedStats(deviceId, startTime, endTime) {
 
     return await response.json();
   } catch (error) {
-    console.error("Error fetching aggregated stats:", error);
+    if (error.name === "AbortError") {
+      console.error("Aggregated stats fetch timeout");
+    } else {
+      console.error("Error fetching aggregated stats:", error);
+    }
     return null;
   }
 }
@@ -111,17 +131,26 @@ async function updateHistoricalView() {
         );
 
         // Get daily breakdown for charts from database
-        const response = await fetch(
-          `/.netlify/functions/get-historical-data?` +
-            new URLSearchParams({
-              deviceId: currentDeviceId,
-              startTime: startDate.toISOString(),
-              endTime: endDate.toISOString(),
-              type: "daily",
-            })
-        );
-        if (response.ok) {
-          chartData = await response.json();
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+          const response = await fetch(
+            `/.netlify/functions/get-historical-data?` +
+              new URLSearchParams({
+                deviceId: currentDeviceId,
+                startTime: startDate.toISOString(),
+                endTime: endDate.toISOString(),
+                type: "daily",
+              }),
+            { signal: controller.signal }
+          );
+          clearTimeout(timeoutId);
+          if (response.ok) {
+            chartData = await response.json();
+          }
+        } catch (error) {
+          console.error("Error fetching daily breakdown for last7:", error);
         }
         break;
       }
@@ -138,17 +167,26 @@ async function updateHistoricalView() {
         );
 
         // Get daily breakdown for charts from database
-        const response = await fetch(
-          `/.netlify/functions/get-historical-data?` +
-            new URLSearchParams({
-              deviceId: currentDeviceId,
-              startTime: startDate.toISOString(),
-              endTime: endDate.toISOString(),
-              type: "daily",
-            })
-        );
-        if (response.ok) {
-          chartData = await response.json();
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+          const response = await fetch(
+            `/.netlify/functions/get-historical-data?` +
+              new URLSearchParams({
+                deviceId: currentDeviceId,
+                startTime: startDate.toISOString(),
+                endTime: endDate.toISOString(),
+                type: "daily",
+              }),
+            { signal: controller.signal }
+          );
+          clearTimeout(timeoutId);
+          if (response.ok) {
+            chartData = await response.json();
+          }
+        } catch (error) {
+          console.error("Error fetching daily breakdown for last30:", error);
         }
         break;
       }

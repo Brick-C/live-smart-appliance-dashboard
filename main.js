@@ -269,16 +269,31 @@ async function getRealTimeSmartPlugData() {
     currentDeviceId ? `?deviceId=${currentDeviceId}` : ""
   }`;
 
-  const response = await fetch(apiEndpoint);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-  if (!response.ok) {
-    // Show error details if the serverless function fails
-    const errorText = await response.text();
-    throw new Error(`API function failed: ${errorText}`);
+    const response = await fetch(apiEndpoint, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      // Show error details if the serverless function fails
+      const errorText = await response.text();
+      throw new Error(`API function failed: ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      console.error("Smart plug data fetch timeout");
+      throw new Error("Smart plug data request timed out");
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  return data;
 }
 
 // DATA PROCESSING & CHART UPDATE

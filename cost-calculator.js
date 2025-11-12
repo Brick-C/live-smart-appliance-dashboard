@@ -32,14 +32,20 @@ async function calculateDailyCost(deviceId, date = new Date()) {
       date.getDate() + 1
     );
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
     const response = await fetch(
       `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
           startTime: startOfDay.toISOString(),
           endTime: endOfDay.toISOString(),
-        })
+        }),
+      { signal: controller.signal }
     );
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error(`API Error: ${response.status} ${response.statusText}`);
@@ -56,7 +62,11 @@ async function calculateDailyCost(deviceId, date = new Date()) {
     const totalKWh = data.reduce((sum, reading) => sum + (reading.kWh || 0), 0);
     return calculateCost(totalKWh);
   } catch (error) {
-    console.error("Error calculating daily cost:", error);
+    if (error.name === "AbortError") {
+      console.error("Daily cost calculation timed out");
+    } else {
+      console.error("Error calculating daily cost:", error);
+    }
     return 0;
   }
 }
@@ -68,14 +78,20 @@ async function calculateWeeklyCost(deviceId) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 7);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
     const response = await fetch(
       `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
-        })
+        }),
+      { signal: controller.signal }
     );
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error(`API Error: ${response.status} ${response.statusText}`);
@@ -92,7 +108,11 @@ async function calculateWeeklyCost(deviceId) {
     const totalKWh = data.reduce((sum, reading) => sum + (reading.kWh || 0), 0);
     return calculateCost(totalKWh);
   } catch (error) {
-    console.error("Error calculating weekly cost:", error);
+    if (error.name === "AbortError") {
+      console.error("Weekly cost calculation timed out");
+    } else {
+      console.error("Error calculating weekly cost:", error);
+    }
     return 0;
   }
 }
@@ -146,14 +166,20 @@ async function checkDatabaseData() {
   console.log("Checking database for device:", currentDeviceId);
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch(
       `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId: currentDeviceId,
           startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
           endTime: new Date().toISOString(),
-        })
+        }),
+      { signal: controller.signal }
     );
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
     console.log("Database response:", data);
