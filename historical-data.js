@@ -1,12 +1,22 @@
 // Functions to fetch and display historical data
-async function getHourlyData(deviceId) {
+async function getHourlyData(deviceId, date = null) {
   try {
+    // If date is provided, use it; otherwise use today
+    const targetDate = date ? new Date(date) : new Date();
+    const startOfDay = new Date(
+      targetDate.getFullYear(),
+      targetDate.getMonth(),
+      targetDate.getDate()
+    );
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
     const response = await fetch(
-      `/.netlify/functions/get-historical-data?` +
+      `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
-          type: "hourly",
-          startTime: new Date().toISOString(),
+          startTime: startOfDay.toISOString(),
+          endTime: endOfDay.toISOString(),
         })
     );
     return await response.json();
@@ -16,19 +26,20 @@ async function getHourlyData(deviceId) {
   }
 }
 
-async function getWeeklyData(deviceId) {
+async function getWeeklyData(deviceId, startDate = null, endDate = null) {
   try {
-    const endTime = new Date();
-    const startTime = new Date();
-    startTime.setDate(startTime.getDate() - 7);
+    // Default to last 7 days if dates not provided
+    const end = endDate ? new Date(endDate) : new Date();
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const response = await fetch(
-      `/.netlify/functions/get-historical-data?` +
+      `/.netlify/functions/store-energy-data?` +
         new URLSearchParams({
           deviceId,
-          type: "daily",
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
         })
     );
     return await response.json();
@@ -45,28 +56,30 @@ async function updateHistoricalView() {
   try {
     let data;
     switch (timeframe) {
-      case "today":
-        data = await getHourlyData(currentDeviceId);
+      case "today": {
+        data = await getHourlyData(currentDeviceId, new Date());
         break;
-      case "last7":
-        data = await getWeeklyData(currentDeviceId);
-        break;
-      case "yesterday":
-        // Get yesterday's data
+      }
+      case "yesterday": {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         data = await getHourlyData(currentDeviceId, yesterday);
         break;
-      case "last30":
-        // Get monthly data
-        const endTime = new Date();
-        const startTime = new Date();
-        startTime.setDate(startTime.getDate() - 30);
-        data = await getWeeklyData(currentDeviceId, startTime, endTime);
+      }
+      case "last7": {
+        data = await getWeeklyData(currentDeviceId);
         break;
+      }
+      case "last30": {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        data = await getWeeklyData(currentDeviceId, startDate, endDate);
+        break;
+      }
     }
 
-    if (data) {
+    if (data && Array.isArray(data)) {
       // Update charts and statistics
       updateHistoricalCharts(data, timeframe);
       updateHistoricalStats(data);
@@ -130,7 +143,7 @@ function updateHistoricalStats(data) {
   document.getElementById("total-usage").textContent = `${totalKWh.toFixed(
     3
   )} kWh`;
-  document.getElementById("total-cost").textContent = `$${totalCost.toFixed(
+  document.getElementById("total-cost").textContent = `৳${totalCost.toFixed(
     2
   )}`;
 }

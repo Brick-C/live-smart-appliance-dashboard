@@ -9,7 +9,7 @@ if (process.env.NODE_ENV !== "production") {
 const DEVICES = [
   {
     id: process.env.DEVICE_ID_1,
-    name: "Coffee Maker",
+    name: "Deep Freezer",
     location: "Smart Plug",
     type: "Smart Plug",
   },

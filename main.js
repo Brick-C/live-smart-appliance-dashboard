@@ -99,6 +99,41 @@ async function changeDevice(deviceId) {
       console.error("Failed to load historical data:", error);
     }
 
+    // Load yesterday's data for cost comparison
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const startOfYesterday = new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate()
+      );
+      const endOfYesterday = new Date(startOfYesterday);
+      endOfYesterday.setDate(endOfYesterday.getDate() + 1);
+
+      const response = await fetch(
+        "/.netlify/functions/store-energy-data?" +
+          new URLSearchParams({
+            deviceId: currentDeviceId,
+            startTime: startOfYesterday.toISOString(),
+            endTime: endOfYesterday.toISOString(),
+          })
+      );
+
+      if (response.ok) {
+        const yesterdayData = await response.json();
+        if (Array.isArray(yesterdayData) && yesterdayData.length > 0) {
+          analytics.dailyData.yesterday = yesterdayData.map((reading) => ({
+            time: new Date(reading.timestamp),
+            watts: reading.watts,
+            cost: reading.cost,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load yesterday's data:", error);
+    }
+
     // Fetch new device data
     await fetchDataAndRender();
 
@@ -187,7 +222,7 @@ const energyChart = new Chart(energyCtx, {
         type: "bar",
         label: "Energy (kWh)",
         data: powerData.kwh,
-        backgroundColor: "rgba(247, 207, 85, 0.8)",
+        backgroundColor: "rgba(21, 108, 237, 1)",
         borderWidth: 0,
       },
       {
