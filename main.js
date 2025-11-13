@@ -652,8 +652,8 @@ let summaryChart = new Chart(summaryCtx, {
     maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: {
-      x: { display: false },
-      y: { display: false },
+      x: { display: true, text: "Energy (kWh)" },
+      y: { display: true, text: "Time" },
     },
   },
 });
