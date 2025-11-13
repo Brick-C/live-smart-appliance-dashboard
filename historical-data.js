@@ -62,7 +62,7 @@ async function getAggregatedStats(deviceId, startTime, endTime) {
     );
 
     // If device is switch-only, return empty stats
-    if (deviceId === "bf3ef2ae093d5173c3yma5") {
+    if (deviceId === process.env.DEVICE_ID_2) {
       console.log(`🚫 LDNIO SCW1050 detected - returning empty stats`);
       return {
         totalKWh: 0,
