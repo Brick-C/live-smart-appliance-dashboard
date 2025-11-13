@@ -20,6 +20,7 @@ body {
 .stat-card {
   position: relative;
   overflow: hidden;
+  width: 47%;
 }
 
 .stat-card::before {
@@ -85,4 +86,79 @@ html {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Layout for control section */
+.control-box {
+  display: flex;
+  flex-direction: row;
+}
+
+/* Make the device + metrics cards sit side-by-side */
+.control-box .device {
+  display: inline-block;
+  vertical-align: top;
+  box-sizing: border-box;
+}
+.control-box .metrics {
+  width: 48%;
+  display: inline-block;
+  vertical-align: top;
+  box-sizing: border-box;
+}
+
+/* Row layout for the two top cards */
+.control-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem; /* adjust gap between cards */
+}
+
+/* Ensure the first two cards share the same row */
+.control-box .device,
+.control-box .metrics {
+  flex: 1 1 calc(50% - 0.75rem); /* 50% minus half the gap */
+
+  .power-box-1 {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .power-box-2 {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/* Make power draw box appear below them, full width */
+.power-draw-box {
+  width: 100%;
+  margin-top: 1.5rem;
+}
+
+/* === MOBILE RESPONSIVE === */
+@media (max-width: 768px) {
+  .control-box {
+    flex-direction: column;
+  }
+
+  .control-box .device,
+  .control-box .metrics {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .power-box-1,
+  .power-box-2 {
+    flex-direction: column;
+  }
+
+  .power-box-1 .stat-card,
+  .power-box-2 .stat-card {
+    width: 100%;
+  }
+
+  .power-draw-box {
+    margin-top: 1rem;
+  }
 }

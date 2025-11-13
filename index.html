@@ -38,11 +38,11 @@
         </div>
       </header>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:flex-row gap-6">
         <!-- Control Panel -->
-        <div class="lg:col-span-1 space-y-6">
+        <div class="control-box flex-1">
           <!-- Device Control Card -->
-          <div class="card rounded-2xl p-6">
+          <div class="card rounded-2xl p-6 device">
             <h2 class="text-lg font-semibold text-gray-900 mb-6">Control</h2>
 
             <div class="space-y-4">
@@ -99,74 +99,81 @@
           </div>
 
           <!-- Live Metrics Card -->
-          <div class="card rounded-2xl p-6">
+          <div class="card rounded-2xl p-6 metrics">
             <h2 class="text-lg font-semibold text-gray-900 mb-6">
               Live Metrics
             </h2>
 
             <div class="space-y-5">
-              <!-- Current Power -->
-              <div
-                class="stat-card rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100/50"
-              >
+              <div class="power-box-1">
+                <!-- Current Power -->
                 <div
-                  class="text-xs uppercase tracking-wider text-gray-800 font-medium mb-1"
+                  class="stat-card rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100/50"
                 >
-                  Power Draw
+                  <div
+                    class="text-xs uppercase tracking-wider text-gray-800 font-medium mb-1"
+                  >
+                    Power Draw
+                  </div>
+                  <div
+                    class="metric-value text-3xl text-gray-900"
+                    id="current-watts"
+                  >
+                    0 W
+                  </div>
                 </div>
+
+                <!-- Total Energy -->
                 <div
-                  class="metric-value text-3xl text-gray-900"
-                  id="current-watts"
+                  class="stat-card rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100/50"
                 >
-                  0 W
+                  <div
+                    class="text-xs uppercase tracking-wider text-gray-800 font-medium mb-1"
+                  >
+                    Total Energy
+                  </div>
+                  <div
+                    class="metric-value text-3xl text-gray-900"
+                    id="total-kwh"
+                  >
+                    0.00 kWh
+                  </div>
                 </div>
               </div>
 
-              <!-- Total Energy -->
-              <div
-                class="stat-card rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100/50"
-              >
+              <div class="power-box-2">
+                <!-- Hourly Cost -->
                 <div
-                  class="text-xs uppercase tracking-wider text-gray-800 font-medium mb-1"
+                  class="stat-card rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100/50"
                 >
-                  Total Energy
+                  <div
+                    class="text-xs uppercase tracking-wider text-gray-800 font-medium mb-1"
+                  >
+                    Hourly Cost
+                  </div>
+                  <div
+                    class="metric-value text-3xl text-gray-900"
+                    id="hourly-cost"
+                  >
+                    ৳0.00/hr
+                  </div>
                 </div>
-                <div class="metric-value text-3xl text-gray-900" id="total-kwh">
-                  0.00 kWh
-                </div>
-              </div>
 
-              <!-- Hourly Cost -->
-              <div
-                class="stat-card rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100/50"
-              >
+                <!-- Daily Cost -->
                 <div
-                  class="text-xs uppercase tracking-wider text-gray-800 font-medium mb-1"
+                  class="stat-card rounded-xl p-4 bg-gradient-to-br from-indigo-50 to-purple-50"
                 >
-                  Hourly Cost
-                </div>
-                <div
-                  class="metric-value text-3xl text-gray-900"
-                  id="hourly-cost"
-                >
-                  ৳0.00/hr
-                </div>
-              </div>
-
-              <!-- Daily Cost -->
-              <div
-                class="stat-card rounded-xl p-4 bg-gradient-to-br from-indigo-50 to-purple-50"
-              >
-                <div
-                  class="text-xs uppercase tracking-wider text-indigo-600 font-medium mb-1"
-                >
-                  Daily Projection
-                </div>
-                <div
-                  class="metric-value text-3xl text-indigo-900"
-                  id="daily-cost"
-                >
-                  ৳0.00
+                  <div
+                    class="text-xs uppercase tracking-wider text-indigo-600 font-medium mb-1"
+                  >
+                    Daily Projection
+                  </div>
+                  <div
+                    class="metric-value text-3xl text-indigo-900"
+                    id="daily-cost"
+                  >
+                    ৳0.00
+                  </div>
                 </div>
               </div>
             </div>
@@ -181,7 +188,7 @@
         </div>
 
         <!-- Live Power Chart -->
-        <div class="lg:col-span-2 card rounded-2xl p-6 md:p-8">
+        <div class="power-draw-box flex-1 card rounded-2xl p-6 md:p-8">
           <h2 class="text-lg font-semibold text-gray-900 mb-6">Power Draw</h2>
           <canvas id="powerChart"></canvas>
         </div>
