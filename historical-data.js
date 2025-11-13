@@ -274,3 +274,38 @@ function updateHistoricalStats(statsData) {
     2
   )}`;
 }
+
+// --- Update Summary Mini Chart ---
+if (summaryChart) {
+  let labels = [];
+  let values = [];
+
+  if (timeframe === "today" || timeframe === "yesterday") {
+    labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    values = Array(24).fill(0);
+    if (Array.isArray(data)) {
+      data.forEach((entry) => {
+        if (entry._id !== null && entry._id !== undefined) {
+          values[entry._id] = entry.avgWatts || 0;
+        }
+      });
+    }
+  } else {
+    if (Array.isArray(data) && data.length > 0) {
+      labels = data.map((entry) =>
+        entry._id?.day
+          ? new Date(
+              entry._id.year,
+              entry._id.month - 1,
+              entry._id.day
+            ).toLocaleDateString()
+          : ""
+      );
+      values = data.map((entry) => entry.avgWatts || 0);
+    }
+  }
+
+  summaryChart.data.labels = labels;
+  summaryChart.data.datasets[0].data = values;
+  summaryChart.update();
+}

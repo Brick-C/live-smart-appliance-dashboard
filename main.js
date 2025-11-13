@@ -50,10 +50,6 @@ async function loadDevices() {
 
 // Add this at the beginning of the changeDevice function (around line 51)
 async function changeDevice(deviceId) {
-  console.log("=== DEVICE SWITCH DEBUG ===");
-  console.log("Previous device:", currentDeviceId);
-  console.log("New device:", deviceId);
-
   if (deviceId === currentDeviceId) {
     console.log("Same device selected, skipping switch");
     return;
@@ -628,6 +624,36 @@ const energyChart = new Chart(energyCtx, {
     plugins: {
       legend: { display: false },
       title: { display: false },
+    },
+  },
+});
+
+// --- Summary Mini Chart ---
+const summaryCtx = document.getElementById("summaryChart").getContext("2d");
+let summaryChart = new Chart(summaryCtx, {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: "Usage Trend",
+        data: [],
+        borderColor: "rgb(99, 102, 241)",
+        backgroundColor: "rgba(99, 102, 241, 0.1)",
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 0,
+        fill: true,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: { display: false },
     },
   },
 });
