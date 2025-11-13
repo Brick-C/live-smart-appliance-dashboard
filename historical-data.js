@@ -248,40 +248,40 @@ function updateHistoricalCharts(data, timeframe) {
     patternsChart.update();
   }
 
-  // --- Update Summary Mini Chart ---
-  if (summaryChart) {
-    let labels = [];
-    let values = [];
+  // // --- Update Summary Mini Chart ---
+  // if (summaryChart) {
+  //   let labels = [];
+  //   let values = [];
 
-    if (timeframe === "today" || timeframe === "yesterday") {
-      labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-      values = Array(24).fill(0);
-      if (Array.isArray(data)) {
-        data.forEach((entry) => {
-          if (entry._id !== null && entry._id !== undefined) {
-            values[entry._id] = entry.avgWatts || 0;
-          }
-        });
-      }
-    } else {
-      if (Array.isArray(data) && data.length > 0) {
-        labels = data.map((entry) =>
-          entry._id?.day
-            ? new Date(
-                entry._id.year,
-                entry._id.month - 1,
-                entry._id.day
-              ).toLocaleDateString()
-            : ""
-        );
-        values = data.map((entry) => entry.avgWatts || 0);
-      }
-    }
+  //   if (timeframe === "today" || timeframe === "yesterday") {
+  //     labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+  //     values = Array(24).fill(0);
+  //     if (Array.isArray(data)) {
+  //       data.forEach((entry) => {
+  //         if (entry._id !== null && entry._id !== undefined) {
+  //           values[entry._id] = entry.avgWatts || 0;
+  //         }
+  //       });
+  //     }
+  //   } else {
+  //     if (Array.isArray(data) && data.length > 0) {
+  //       labels = data.map((entry) =>
+  //         entry._id?.day
+  //           ? new Date(
+  //               entry._id.year,
+  //               entry._id.month - 1,
+  //               entry._id.day
+  //             ).toLocaleDateString()
+  //           : ""
+  //       );
+  //       values = data.map((entry) => entry.avgWatts || 0);
+  //     }
+  //   }
 
-    summaryChart.data.labels = labels;
-    summaryChart.data.datasets[0].data = values;
-    summaryChart.update();
-  }
+  //   summaryChart.data.labels = labels;
+  //   summaryChart.data.datasets[0].data = values;
+  //   summaryChart.update();
+  // }
 }
 
 // Function to update historical statistics from aggregated database data
@@ -308,4 +308,104 @@ function updateHistoricalStats(statsData) {
   document.getElementById("total-cost").textContent = `৳${totalCost.toFixed(
     2
   )}`;
+}
+
+function updateSummaryChart(data, timeframe) {
+  console.log("=== DEBUG SUMMARY CHART ===");
+  console.log("Timeframe:", timeframe);
+  console.log("Raw data:", data);
+  console.log("Data type:", typeof data);
+  console.log("Is array:", Array.isArray(data));
+
+  if (data && Array.isArray(data)) {
+    console.log("Data length:", data.length);
+    if (data.length > 0) {
+      console.log("First data entry:", data[0]);
+      console.log("Sample entries:", data.slice(0, 3));
+    }
+  }
+
+  if (!data) data = [];
+
+  let labels = [];
+  let values = [];
+
+  if (timeframe === "today" || timeframe === "yesterday") {
+    // Show hourly data
+    const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    const hourlyValues = Array(24).fill(0);
+
+    console.log("Processing hourly data...");
+    console.log("Hourly values array length:", hourlyValues.length);
+
+    if (Array.isArray(data) && data.length > 0) {
+      console.log("Processing", data.length, "data entries for hourly chart");
+      data.forEach((entry, index) => {
+        console.log(`Entry ${index}:`, entry);
+        if (entry._id !== null && entry._id !== undefined) {
+          const hourIndex = entry._id;
+          const wattValue = entry.avgWatts || 0;
+          console.log(`  Hour ${hourIndex}: ${wattValue}W`);
+          if (hourIndex >= 0 && hourIndex < 24) {
+            hourlyValues[hourIndex] = wattValue;
+          } else {
+            console.warn(`Invalid hour index: ${hourIndex}`);
+          }
+        } else {
+          console.warn(`Entry ${index} has invalid _id:`, entry._id);
+        }
+      });
+    }
+
+    console.log("Final hourly values:", hourlyValues);
+    labels = hours;
+    values = hourlyValues;
+  } else {
+    // Show daily data for last7 or last30
+    console.log("Processing daily data...");
+
+    if (Array.isArray(data) && data.length > 0) {
+      labels = data.map((entry, index) => {
+        console.log(`Daily entry ${index}:`, entry);
+        if (entry._id && entry._id.year && entry._id.month && entry._id.day) {
+          const date = new Date(
+            entry._id.year,
+            entry._id.month - 1,
+            entry._id.day
+          );
+          return date.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
+        }
+        return "";
+      });
+
+      values = data.map((entry, index) => {
+        const value = entry.avgWatts || 0;
+        console.log(`Daily value ${index}: ${value}W`);
+        return value;
+      });
+
+      console.log("Final daily labels:", labels);
+      console.log("Final daily values:", values);
+    } else {
+      console.log("No daily data available");
+    }
+  }
+
+  // Update the summary chart
+  if (typeof summaryChart !== "undefined" && summaryChart) {
+    console.log("Updating summary chart...");
+    console.log("Chart labels:", labels);
+    console.log("Chart values:", values);
+
+    summaryChart.data.labels = labels;
+    summaryChart.data.datasets[0].data = values;
+    summaryChart.update();
+
+    console.log("Chart updated successfully!");
+  } else {
+    console.error("Summary chart not found or not initialized!");
+  }
 }

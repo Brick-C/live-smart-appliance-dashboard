@@ -84,6 +84,11 @@ async function changeDevice(deviceId) {
     patternsChart.data.datasets[0].data = Array(24).fill(0);
     patternsChart.update();
 
+    // Reset summary chart
+    summaryChart.data.labels = [];
+    summaryChart.data.datasets[0].data = [];
+    summaryChart.update();
+
     // Reset last update timestamp to calculate proper delta
     lastUpdateTimestamp = Date.now();
 
@@ -432,6 +437,11 @@ async function changeDevice(deviceId) {
     patternsChart.data.datasets[0].data = Array(24).fill(0);
     patternsChart.update();
 
+    // Reset summary chart
+    summaryChart.data.labels = [];
+    summaryChart.data.datasets[0].data = [];
+    summaryChart.update();
+
     // Reset last update timestamp to calculate proper delta
     lastUpdateTimestamp = Date.now();
 
@@ -624,36 +634,6 @@ const energyChart = new Chart(energyCtx, {
     plugins: {
       legend: { display: false },
       title: { display: false },
-    },
-  },
-});
-
-// --- Summary Mini Chart ---
-const summaryCtx = document.getElementById("summaryChart").getContext("2d");
-let summaryChart = new Chart(summaryCtx, {
-  type: "line",
-  data: {
-    labels: [],
-    datasets: [
-      {
-        label: "Usage Trend",
-        data: [],
-        borderColor: "rgb(99, 102, 241)",
-        backgroundColor: "rgba(99, 102, 241, 0.1)",
-        borderWidth: 2,
-        tension: 0.4,
-        pointRadius: 0,
-        fill: true,
-      },
-    ],
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { display: true, text: "Energy (kWh)" },
-      y: { display: true, text: "Time" },
     },
   },
 });
@@ -1283,6 +1263,68 @@ const patternsChart = new Chart(patternsCtx, {
         title: {
           display: true,
           text: "Hour of Day",
+        },
+      },
+    },
+  },
+});
+
+// Initialize the summary chart
+const summaryCtx = document.getElementById("summaryChart").getContext("2d");
+const summaryChart = new Chart(summaryCtx, {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: "Usage",
+        data: [],
+        borderColor: "rgb(99, 102, 241)",
+        backgroundColor: "rgba(99, 102, 241, 0.2)",
+        borderWidth: 2,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            return `${context.parsed.y.toFixed(1)} W`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          display: true,
+          color: "rgba(0, 0, 0, 0.05)",
+        },
+        ticks: {
+          font: {
+            size: 10,
+          },
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          font: {
+            size: 10,
+          },
+          maxTicksLimit: 6,
         },
       },
     },
