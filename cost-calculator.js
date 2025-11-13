@@ -97,7 +97,7 @@ class CostCalculator {
   isPowerMonitoringDevice(deviceId) {
     // Device ID 1 (Deep Freezer) has power monitoring
     // Device ID 2 (Computer) is switch-only
-    return deviceId !== "bf3ef2ae093d5173c3yma5";
+    return deviceId !== process.env.DEVICE_ID_2;
   }
 
   // Update HTML cost displays

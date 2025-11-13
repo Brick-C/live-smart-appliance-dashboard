@@ -2070,6 +2070,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
   console.log(`✅ Enhanced dashboard integration loaded`);
 });
-
-console.log(`📊 Enhanced Summary Manager loaded`);
-console.log(`🔧 Integrates timeframe selection with both summary and charts`);
