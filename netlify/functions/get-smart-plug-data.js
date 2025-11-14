@@ -59,10 +59,6 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // === COMPREHENSIVE DEVICE ANALYSIS ===
-      console.log("=== COMPREHENSIVE DEVICE ANALYSIS ===");
-
-      // Try multiple API endpoints to get full device info
       const apiEndpoints = [
         // Method 1: Shadow properties (v2.0)
         {
@@ -121,9 +117,6 @@ exports.handler = async (event, context) => {
           allResponses[api.name] = { error: error.message };
         }
       }
-
-      // === EXTRACT TOGGLEABLE PROPERTIES ===
-      console.log("=== EXTRACTING TOGGLEABLE PROPERTIES ===");
 
       let toggleProperty = null;
       let currentState = null;
@@ -474,9 +467,6 @@ exports.handler = async (event, context) => {
         selectedData: finalPowerData,
       },
     };
-
-    console.log("=== COMPREHENSIVE FINAL RESPONSE ===");
-    console.log(JSON.stringify(responseData, null, 2));
 
     return {
       statusCode: 200,
