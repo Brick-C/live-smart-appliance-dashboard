@@ -2,6 +2,7 @@
 let currentDeviceId = null;
 let devices = [];
 let deviceStates = {}; // Track on/off state per device
+let activeSummaryRange = "today";
 
 function updateDeviceInfo(device) {
   // Update the device information in the UI
@@ -550,7 +551,7 @@ let powerData = {
   cumulativeKWh: 0,
 };
 let lastUpdateTimestamp = Date.now();
-const updateIntervalMs = 5000; // API fetch interval (5 seconds)
+const updateIntervalMs = 10000; // API fetch interval (5 seconds)
 
 // --- CHART INITIALIZATION ---
 const powerCtx = document.getElementById("powerChart").getContext("2d");
@@ -1505,6 +1506,75 @@ function updateDailySummary(newData) {
     return;
   }
 }
+
+//Summary Range
+function setSummaryRange(range) {
+  activeSummaryRange = range;
+
+  if (range === "today") loadTodaySummary();
+  if (range === "yesterday") loadYesterdaySummary();
+  if (range === "week") loadWeeklySummary();
+}
+
+function renderSummaryChart(data) {
+  summaryChart.data.labels = data.map((r) =>
+    new Date(r.timestamp).toLocaleString()
+  );
+  summaryChart.data.datasets[0].data = data.map((r) => r.watts);
+
+  summaryChart.update();
+}
+
+async function loadTodaySummary() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const data = await fetchSummaryRange(start, new Date());
+
+  renderSummaryChart(data);
+}
+
+async function loadYesterdaySummary() {
+  const start = new Date();
+  start.setDate(start.getDate() - 1);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const data = await fetchSummaryRange(start, end);
+
+  renderSummaryChart(data);
+}
+
+async function loadWeeklySummary() {
+  const start = new Date();
+  start.setDate(start.getDate() - 7);
+
+  const data = await fetchSummaryRange(start, new Date());
+
+  renderSummaryChart(data);
+}
+
+async function fetchSummaryRange(start, end) {
+  const response = await fetch(
+    "/.netlify/functions/store-energy-data?" +
+      new URLSearchParams({
+        deviceId: currentDeviceId,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      })
+  );
+
+  if (!response.ok) return [];
+
+  return await response.json();
+}
+
+// Always refresh summary according to active selection
+if (activeSummaryRange === "today") loadTodaySummary();
+if (activeSummaryRange === "yesterday") loadYesterdaySummary();
+if (activeSummaryRange === "week") loadWeeklySummary();
 
 // Export functionality
 async function exportData(format) {
