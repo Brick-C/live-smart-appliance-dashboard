@@ -494,6 +494,8 @@ function extractPowerData(methodName, response) {
   let rawPowerValue = null;
   let powerPropertyCode = null;
   let switchState = null;
+  let current = null;
+  let voltage = null;
 
   try {
     if (methodName === "Shadow Properties (v2.0)") {
