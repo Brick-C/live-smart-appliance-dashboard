@@ -526,6 +526,54 @@ function extractPowerData(methodName, response) {
         }
       }
 
+      // --- Extract Current (mA) ---
+      const currentCandidates = [
+        "cur_current",
+        "current",
+        "electric_current",
+        "mcurrent",
+        "dp18",
+      ];
+      for (const code of currentCandidates) {
+        const currentValue =
+          deviceState[code]?.value ||
+          deviceState[code] ||
+          reportedState[code]?.value ||
+          reportedState[code] ||
+          desiredState[code]?.value ||
+          desiredState[code];
+
+        if (currentValue !== undefined) {
+          console.log(`Found current ('${code}'):`, currentValue);
+          current = currentValue; // already in mA
+          break;
+        }
+      }
+
+      // --- Extract Voltage (V ×10) ---
+      const voltageCandidates = [
+        "cur_voltage",
+        "voltage",
+        "electric_voltage",
+        "mv",
+        "dp20",
+      ];
+      for (const code of voltageCandidates) {
+        const voltageValue =
+          deviceState[code]?.value ||
+          deviceState[code] ||
+          reportedState[code]?.value ||
+          reportedState[code] ||
+          desiredState[code]?.value ||
+          desiredState[code];
+
+        if (voltageValue !== undefined) {
+          console.log(`Found voltage ('${code}'):`, voltageValue);
+          voltage = voltageValue / 10; // Tuya uses V × 10 format
+          break;
+        }
+      }
+
       // Look for power data
       const powerCandidates = [
         "cur_power",
@@ -616,6 +664,8 @@ function extractPowerData(methodName, response) {
 
   return {
     watts: Math.round(watts * 10) / 10,
+    current: current,
+    voltage: voltage,
     isDeviceOn,
     rawPowerValue,
     powerPropertyCode,
