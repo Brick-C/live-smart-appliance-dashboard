@@ -276,7 +276,6 @@ function updateHistoricalStats(statsData) {
 }
 
 function updateSummaryChart(data, timeframe) {
-  console.log("=== DEBUG SUMMARY CHART ===");
   console.log("Timeframe:", timeframe);
   console.log("Raw data:", data);
   console.log("Data type:", typeof data);
@@ -300,7 +299,6 @@ function updateSummaryChart(data, timeframe) {
     const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
     const hourlyValues = Array(24).fill(0);
 
-    console.log("Processing hourly data...");
     console.log("Hourly values array length:", hourlyValues.length);
 
     if (Array.isArray(data) && data.length > 0) {
@@ -327,7 +325,6 @@ function updateSummaryChart(data, timeframe) {
     values = hourlyValues;
   } else {
     // Show daily data for last7 or last30
-    console.log("Processing daily data...");
 
     if (Array.isArray(data) && data.length > 0) {
       labels = data.map((entry, index) => {
@@ -361,15 +358,12 @@ function updateSummaryChart(data, timeframe) {
 
   // Update the summary chart
   if (typeof summaryChart !== "undefined" && summaryChart) {
-    console.log("Updating summary chart...");
-    console.log("Chart labels:", labels);
-    console.log("Chart values:", values);
+    console.log("Updated Chart labels:", labels);
+    console.log("Updated Chart values:", values);
 
     summaryChart.data.labels = labels;
     summaryChart.data.datasets[0].data = values;
     summaryChart.update();
-
-    console.log("Chart updated successfully!");
   } else {
     console.error("Summary chart not found or not initialized!");
   }

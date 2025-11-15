@@ -1,4 +1,3 @@
-// Default electricity rate (Bangladesh: 9.5 BDT/kWh - typical household rate with surcharges)
 let electricityRate =
   parseFloat(localStorage.getItem("electricityRate")) || 9.5;
 
@@ -8,7 +7,6 @@ function updateElectricityRate(rate) {
   if (rate >= 0) {
     electricityRate = rate;
     localStorage.setItem("electricityRate", rate.toString());
-    // Update displayed costs
     updateCostDisplays();
   }
 }
@@ -119,7 +117,6 @@ async function calculateWeeklyCost(deviceId) {
 
 // Function to update all cost displays
 async function updateCostDisplays() {
-  // Check if currentDeviceId is defined and not null/empty
   if (typeof currentDeviceId === "undefined" || !currentDeviceId) {
     console.warn("updateCostDisplays called but no device selected");
     return;
@@ -157,7 +154,6 @@ window.addEventListener("load", () => {
     rateElement.value = electricityRate.toFixed(2);
   }
 
-  // Only update cost displays if currentDeviceId is defined
   if (typeof currentDeviceId !== "undefined" && currentDeviceId) {
     updateCostDisplays();
   }

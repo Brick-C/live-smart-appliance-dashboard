@@ -1,11 +1,10 @@
 // Device management
 let currentDeviceId = null;
 let devices = [];
-let deviceStates = {}; // Track on/off state per device
+let deviceStates = {};
 let activeSummaryRange = "today";
 
 function updateDeviceInfo(device) {
-  // Update the device information in the UI
   const deviceName = document.getElementById("device-name");
   const deviceType = document.getElementById("device-type");
   const deviceId = document.getElementById("device-id");
@@ -214,14 +213,11 @@ async function changeDevice(deviceId) {
     const button = document.getElementById("toggle-button");
     const isOn = getDeviceState(currentDeviceId);
     button.textContent = isOn ? "Turn OFF" : "Turn ON";
-
-    console.log("=== DEVICE SWITCH COMPLETE ===");
   } else {
     console.error("Device not found:", deviceId);
   }
 }
 
-// Enhanced getRealTimeSmartPlugData with better error logging
 async function getRealTimeSmartPlugData() {
   const apiEndpoint = `/.netlify/functions/get-smart-plug-data${
     currentDeviceId ? `?deviceId=${currentDeviceId}` : ""
@@ -266,7 +262,6 @@ async function getRealTimeSmartPlugData() {
   }
 }
 
-// Enhanced processAndRenderData with better logging
 async function processAndRenderData(newData) {
   console.log("Processing data:", {
     watts: newData.watts,
@@ -308,6 +303,8 @@ async function processAndRenderData(newData) {
       const storeData = {
         deviceId: currentDeviceId,
         watts: newData.watts,
+        current: newData.device.current,
+        voltage: newData.device.voltage,
         kWh: kwh_increment,
         cost: newData.energy ? kwh_increment * newData.energy.ratePerKWh : 0,
       };
@@ -346,6 +343,21 @@ async function processAndRenderData(newData) {
       await new Promise((resolve) =>
         setTimeout(resolve, Math.min(1000 * Math.pow(2, retryCount), 5000))
       );
+    }
+  }
+
+  // Update current & voltage
+  if (newData.device) {
+    if (newData.device.current !== undefined) {
+      document.getElementById(
+        "current-ma"
+      ).textContent = `${newData.device.current} mA`;
+    }
+
+    if (newData.device.voltage !== undefined) {
+      document.getElementById(
+        "voltage-v"
+      ).textContent = `${newData.device.voltage} V`;
     }
   }
 
@@ -551,7 +563,7 @@ let powerData = {
   cumulativeKWh: 0,
 };
 let lastUpdateTimestamp = Date.now();
-const updateIntervalMs = 10000; // API fetch interval (5 seconds)
+const updateIntervalMs = 10000; // API fetch interval
 
 // --- CHART INITIALIZATION ---
 const powerCtx = document.getElementById("powerChart").getContext("2d");
@@ -651,7 +663,7 @@ async function getRealTimeSmartPlugData() {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const response = await fetch(apiEndpoint, {
       signal: controller.signal,
@@ -843,7 +855,7 @@ window.onload = function () {
         "/.netlify/functions/store-energy-data?" +
           new URLSearchParams({
             deviceId: currentDeviceId,
-            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last 24 hours
+            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
           })
       );
 

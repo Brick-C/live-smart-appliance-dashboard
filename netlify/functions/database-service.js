@@ -37,6 +37,8 @@ class DatabaseService {
     const document = {
       deviceId: reading.deviceId,
       watts: reading.watts,
+      current: reading.current,
+      voltage: reading.voltage,
       kWh: reading.kWh,
       cost: reading.cost,
       timestamp: new Date(),
@@ -112,6 +114,10 @@ class DatabaseService {
           $group: {
             _id: { $hour: "$timestamp" },
             avgWatts: { $avg: "$watts" },
+            avgCurrent: { $avg: "$current" },
+            maxCurrent: { $max: "$current" },
+            avgVoltage: { $avg: "$voltage" },
+            maxVoltage: { $max: "$voltage" },
             totalKWh: { $sum: "$kWh" },
             totalCost: { $sum: "$cost" },
           },
@@ -172,7 +178,7 @@ class DatabaseService {
       setting: "electricityRate",
     });
 
-    return result ? result.value : 0.15; // Default rate if not set
+    return result ? result.value : 9.5; // Default rate if not set
   }
 
   async setElectricityRate(deviceId, rate) {
