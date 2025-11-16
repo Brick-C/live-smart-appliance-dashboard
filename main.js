@@ -3,6 +3,7 @@ let currentDeviceId = null;
 let devices = [];
 let deviceStates = {};
 let activeSummaryRange = "today";
+let realtimeInterval = null;
 
 function updateDeviceInfo(device) {
   const deviceName = document.getElementById("device-name");
@@ -58,6 +59,12 @@ async function changeDevice(deviceId) {
   currentDeviceId = deviceId;
   const device = devices.find((d) => d.id === deviceId);
   console.log("Device object found:", device);
+
+  // Stop old interval
+  if (realtimeInterval) {
+    clearInterval(realtimeInterval);
+    realtimeInterval = null;
+  }
 
   if (device) {
     updateDeviceInfo(device);
@@ -208,6 +215,9 @@ async function changeDevice(deviceId) {
     } catch (error) {
       console.error("Error updating cost displays:", error);
     }
+
+    // Restart live polling for the new device
+    realtimeInterval = setInterval(fetchDataAndRender, updateIntervalMs);
 
     // Update button state for current device
     const button = document.getElementById("toggle-button");
@@ -881,7 +891,7 @@ window.onload = function () {
 
     // Start real-time updates
     fetchDataAndRender();
-    setInterval(fetchDataAndRender, updateIntervalMs);
+    realtimeInterval = setInterval(fetchDataAndRender, updateIntervalMs);
 
     // Save historical data every 5 minutes
     setInterval(saveHistoricalData, 5 * 60 * 1000);
