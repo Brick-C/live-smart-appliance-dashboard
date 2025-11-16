@@ -133,6 +133,8 @@ async function changeDevice(deviceId) {
           historicalDataArray.length > 0
         ) {
           processHistoricalData(historicalDataArray);
+          powerChart.update();
+          energyChart.update();
         } else {
           console.warn("No historical data found for device:", currentDeviceId);
         }
@@ -198,6 +200,10 @@ async function changeDevice(deviceId) {
     console.log("Fetching real-time data for device:", currentDeviceId);
     try {
       await fetchDataAndRender();
+      window.realtimeInterval = setInterval(
+        fetchDataAndRender,
+        updateIntervalMs
+      );
     } catch (error) {
       console.error("Error fetching device data:", error);
     }
