@@ -62,6 +62,12 @@ async function changeDevice(deviceId) {
   if (device) {
     updateDeviceInfo(device);
 
+    // 1. STOP all real-time intervals FIRST
+    if (window.realtimeInterval) {
+      clearInterval(window.realtimeInterval);
+      window.realtimeInterval = null;
+    }
+
     // Reset data structures
     powerData.labels = [];
     powerData.watts = [];
