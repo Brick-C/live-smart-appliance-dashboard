@@ -4,6 +4,48 @@ let devices = [];
 let deviceStates = {};
 let activeSummaryRange = "today";
 
+// LocalStorage keys
+const STORAGE_KEYS = {
+  SELECTED_DEVICE_ID: "energyMonitor_selectedDeviceId",
+  ELECTRICITY_RATE: "energyMonitor_electricityRate",
+};
+
+// Device persistence functions
+function saveSelectedDeviceId(deviceId) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SELECTED_DEVICE_ID, deviceId);
+  } catch (error) {
+    console.warn("Failed to save device ID to localStorage:", error);
+  }
+}
+
+function getSelectedDeviceId() {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.SELECTED_DEVICE_ID);
+  } catch (error) {
+    console.warn("Failed to get device ID from localStorage:", error);
+    return null;
+  }
+}
+
+function saveElectricityRate(rate) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ELECTRICITY_RATE, rate.toString());
+  } catch (error) {
+    console.warn("Failed to save electricity rate to localStorage:", error);
+  }
+}
+
+function getElectricityRate() {
+  try {
+    const rate = localStorage.getItem(STORAGE_KEYS.ELECTRICITY_RATE);
+    return rate ? parseFloat(rate) : null;
+  } catch (error) {
+    console.warn("Failed to get electricity rate from localStorage:", error);
+    return null;
+  }
+}
+
 function updateDeviceInfo(device) {
   const deviceName = document.getElementById("device-name");
   const deviceType = document.getElementById("device-type");
@@ -35,11 +77,27 @@ async function loadDevices() {
       .map((d) => `<option value="${d.id}">${d.name} (${d.type})</option>`)
       .join("");
 
-    // Select first device by default
+    // Select saved device or first device by default
     if (devices.length > 0) {
-      currentDeviceId = devices[0].id;
+      const savedDeviceId = getSelectedDeviceId();
+      let deviceToSelect = devices[0]; // Default to first device
+
+      // Check if saved device ID exists and is valid
+      if (savedDeviceId) {
+        const savedDevice = devices.find((d) => d.id === savedDeviceId);
+        if (savedDevice) {
+          deviceToSelect = savedDevice;
+          console.log("Loading saved device:", deviceToSelect.name);
+        } else {
+          console.log(
+            "Saved device ID not found in device list, using first device"
+          );
+        }
+      }
+
+      currentDeviceId = deviceToSelect.id;
       selector.value = currentDeviceId;
-      updateDeviceInfo(devices[0]);
+      updateDeviceInfo(deviceToSelect);
     }
   } catch (error) {
     console.error("Error loading devices:", error);
@@ -56,6 +114,11 @@ async function changeDevice(deviceId) {
   }
 
   currentDeviceId = deviceId;
+
+  // Save the selected device ID to localStorage
+  saveSelectedDeviceId(deviceId);
+  console.log("Device changed and saved:", deviceId);
+
   const device = devices.find((d) => d.id === deviceId);
   console.log("Device object found:", device);
 

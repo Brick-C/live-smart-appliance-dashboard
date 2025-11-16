@@ -1,12 +1,14 @@
+// Use consistent localStorage key with main.js
 let electricityRate =
-  parseFloat(localStorage.getItem("electricityRate")) || 9.5;
+  parseFloat(localStorage.getItem("energyMonitor_electricityRate")) || 9.5;
 
 // Function to update electricity rate
 function updateElectricityRate(rate) {
   rate = parseFloat(rate);
   if (rate >= 0) {
     electricityRate = rate;
-    localStorage.setItem("electricityRate", rate.toString());
+    localStorage.setItem("energyMonitor_electricityRate", rate.toString());
+    console.log("Electricity rate updated and saved:", rate);
     updateCostDisplays();
   }
 }
