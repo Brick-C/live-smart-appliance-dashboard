@@ -15,7 +15,7 @@ const DEVICES = [
   },
   {
     id: process.env.DEVICE_ID_2,
-    name: "Computer",
+    name: "Fridge",
     location: "Smart Plug",
     type: "Smart Plug",
   },
