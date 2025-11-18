@@ -139,11 +139,22 @@ exports.handler = async (event, context) => {
         }
       }
 
+      console.log(
+        "Query for device:",
+        deviceId,
+        "Query:",
+        JSON.stringify(query)
+      );
+
       const historicalData = await readings
         .find(query)
         .sort({ timestamp: -1 })
         .limit(1000)
         .toArray();
+
+      console.log(
+        `Found ${historicalData.length} readings for device ${deviceId}`
+      );
 
       return {
         statusCode: 200,
