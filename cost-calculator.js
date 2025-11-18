@@ -8,7 +8,6 @@ function updateElectricityRate(rate) {
   if (rate >= 0) {
     electricityRate = rate;
     localStorage.setItem("energyMonitor_electricityRate", rate.toString());
-    console.log("Electricity rate updated and saved:", rate);
     updateCostDisplays();
   }
 }
@@ -168,8 +167,6 @@ async function checkDatabaseData() {
     return;
   }
 
-  console.log("Checking database for device:", currentDeviceId);
-
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -187,8 +184,6 @@ async function checkDatabaseData() {
     clearTimeout(timeoutId);
 
     const data = await response.json();
-    console.log("Database response:", data);
-    console.log("Total records:", Array.isArray(data) ? data.length : 0);
 
     if (Array.isArray(data) && data.length > 0) {
       const totalKWh = data.reduce(

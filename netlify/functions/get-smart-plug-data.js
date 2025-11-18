@@ -44,13 +44,11 @@ exports.handler = async (event, context) => {
   if (event.httpMethod === "POST") {
     try {
       const command = JSON.parse(event.body);
-      console.log("Toggle command received:", command);
 
       const deviceId =
         command.deviceId ||
         event.queryStringParameters?.deviceId ||
         DEVICES[0].id;
-      console.log("Using deviceId:", deviceId);
 
       if (command.action !== "toggle") {
         return {
@@ -90,7 +88,6 @@ exports.handler = async (event, context) => {
 
       for (const api of apiEndpoints) {
         try {
-          console.log(`Trying ${api.name}...`);
           const response = await Promise.race([
             tuya.request({
               method: api.method,
@@ -101,10 +98,6 @@ exports.handler = async (event, context) => {
             ),
           ]);
 
-          console.log(
-            `${api.name} Response:`,
-            JSON.stringify(response, null, 2)
-          );
           allResponses[api.name] = response;
 
           if (response.success) {
@@ -127,10 +120,6 @@ exports.handler = async (event, context) => {
         const state = shadowResponse.result.state || {};
         const desired = shadowResponse.result.desired || {};
         const reported = shadowResponse.result.reported || {};
-
-        console.log("Shadow State:", state);
-        console.log("Desired State:", desired);
-        console.log("Reported State:", reported);
 
         // Look for switch properties
         const switchCandidates = [
@@ -162,8 +151,6 @@ exports.handler = async (event, context) => {
       if (!toggleProperty) {
         const statusResponse = allResponses["Device Status (v1.0)"];
         if (statusResponse && statusResponse.success && statusResponse.result) {
-          console.log("Traditional Status Response:", statusResponse.result);
-
           const switchCandidates = [
             "switch",
             "switch_1",
@@ -190,9 +177,6 @@ exports.handler = async (event, context) => {
 
       // If still no switch found, try common ones
       if (!toggleProperty) {
-        console.log(
-          "No standard switch found, trying common property codes..."
-        );
         const commonSwitches = [
           "switch_1",
           "switch",
@@ -201,7 +185,6 @@ exports.handler = async (event, context) => {
         ];
 
         for (const switchCode of commonSwitches) {
-          console.log(`Trying common switch code: ${switchCode}`);
           try {
             const response = await tuya.request({
               method: "POST",
@@ -217,9 +200,6 @@ exports.handler = async (event, context) => {
             });
 
             if (response.success) {
-              console.log(
-                `SUCCESS with switch code '${switchCode}'! Device turned ON`
-              );
               toggleProperty = switchCode;
               currentState = true;
 
@@ -274,8 +254,6 @@ exports.handler = async (event, context) => {
               )
             ),
           ]);
-
-          console.log("Toggle command sent successfully");
 
           return {
             statusCode: 200,
@@ -348,8 +326,6 @@ exports.handler = async (event, context) => {
     const deviceId = event.queryStringParameters?.deviceId || DEVICES[0].id;
     const device = DEVICES.find((d) => d.id === deviceId) || DEVICES[0];
 
-    console.log("Device info:", device);
-
     // Multiple methods to get power data
     const powerDataMethods = [
       {
@@ -374,7 +350,6 @@ exports.handler = async (event, context) => {
 
     for (const method of powerDataMethods) {
       try {
-        console.log(`Trying ${method.name}...`);
         const response = await Promise.race([
           tuya.request({
             method: method.method,
@@ -385,21 +360,12 @@ exports.handler = async (event, context) => {
           ),
         ]);
 
-        console.log(
-          `${method.name} Response:`,
-          JSON.stringify(response, null, 2)
-        );
         allPowerData[method.name] = response;
 
         if (response.success) {
           // Extract power data from this method
           let extractedPowerData = extractPowerData(method.name, response);
           if (extractedPowerData) {
-            console.log(
-              `Power data extracted from ${method.name}:`,
-              extractedPowerData
-            );
-
             // Prefer this method if it has power data and the previous best doesn't
             if (!bestPowerData || extractedPowerData.watts > 0) {
               bestPowerData = {
@@ -424,9 +390,6 @@ exports.handler = async (event, context) => {
       powerPropertyCode: null,
       switchState: null,
     };
-
-    console.log("Selected method:", bestPowerData?.method || "None");
-    console.log("Final power data:", finalPowerData);
 
     // Calculate costs
     const RATE_PER_KWH = process.env.ELECTRICITY_RATE || 9.5;
@@ -503,8 +466,6 @@ function extractPowerData(methodName, response) {
       const reportedState = response.result?.reported || {};
       const desiredState = response.result?.desired || {};
 
-      console.log("Analyzing v2.0 shadow properties...");
-
       // Look for switch state
       const switchCandidates = [
         "switch_1",
@@ -546,7 +507,6 @@ function extractPowerData(methodName, response) {
           desiredState[code];
 
         if (currentValue !== undefined) {
-          console.log(`Found current ('${code}'):`, currentValue);
           current = currentValue; // already in mA
           break;
         }
@@ -570,7 +530,6 @@ function extractPowerData(methodName, response) {
           desiredState[code];
 
         if (voltageValue !== undefined) {
-          console.log(`Found voltage ('${code}'):`, voltageValue);
           voltage = voltageValue / 10; // Tuya uses V × 10 format
           break;
         }
@@ -595,7 +554,6 @@ function extractPowerData(methodName, response) {
           desiredState[code];
 
         if (powerValue !== undefined && powerValue > 0) {
-          console.log(`Found power data with code '${code}':`, powerValue);
           rawPowerValue = powerValue;
           powerPropertyCode = code;
 
@@ -608,13 +566,10 @@ function extractPowerData(methodName, response) {
             watts = powerValue; // Already in W
           }
 
-          console.log(`Processed power: ${powerValue} -> ${watts}W`);
           break;
         }
       }
     } else if (methodName === "Traditional Status (v1.0)") {
-      console.log("Analyzing v1.0 status response...");
-
       if (Array.isArray(response.result)) {
         // Look for switch and power properties
         for (const item of response.result) {

@@ -276,11 +276,6 @@ function updateHistoricalStats(statsData) {
 }
 
 function updateSummaryChart(data, timeframe) {
-  console.log("Timeframe:", timeframe);
-  console.log("Raw data:", data);
-  console.log("Data type:", typeof data);
-  console.log("Is array:", Array.isArray(data));
-
   if (data && Array.isArray(data)) {
     console.log("Data length:", data.length);
     if (data.length > 0) {
@@ -299,10 +294,7 @@ function updateSummaryChart(data, timeframe) {
     const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
     const hourlyValues = Array(24).fill(0);
 
-    console.log("Hourly values array length:", hourlyValues.length);
-
     if (Array.isArray(data) && data.length > 0) {
-      console.log("Processing", data.length, "data entries for hourly chart");
       data.forEach((entry, index) => {
         console.log(`Entry ${index}:`, entry);
         if (entry._id !== null && entry._id !== undefined) {
@@ -320,7 +312,6 @@ function updateSummaryChart(data, timeframe) {
       });
     }
 
-    console.log("Final hourly values:", hourlyValues);
     labels = hours;
     values = hourlyValues;
   } else {
@@ -328,7 +319,6 @@ function updateSummaryChart(data, timeframe) {
 
     if (Array.isArray(data) && data.length > 0) {
       labels = data.map((entry, index) => {
-        console.log(`Daily entry ${index}:`, entry);
         if (entry._id && entry._id.year && entry._id.month && entry._id.day) {
           const date = new Date(
             entry._id.year,
@@ -345,12 +335,9 @@ function updateSummaryChart(data, timeframe) {
 
       values = data.map((entry, index) => {
         const value = entry.avgWatts || 0;
-        console.log(`Daily value ${index}: ${value}W`);
+
         return value;
       });
-
-      console.log("Final daily labels:", labels);
-      console.log("Final daily values:", values);
     } else {
       console.log("No daily data available");
     }
@@ -358,9 +345,6 @@ function updateSummaryChart(data, timeframe) {
 
   // Update the summary chart
   if (typeof summaryChart !== "undefined" && summaryChart) {
-    console.log("Updated Chart labels:", labels);
-    console.log("Updated Chart values:", values);
-
     summaryChart.data.labels = labels;
     summaryChart.data.datasets[0].data = values;
     summaryChart.update();
