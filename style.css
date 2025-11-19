@@ -88,6 +88,62 @@ html {
   background: #94a3b8;
 }
 
+.text-right {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+
+  .manual {
+    margin-right: 30px;
+    button {
+      position: relative;
+      padding: 10px 20px;
+      color: rgb(0, 0, 0);
+      background: #ffffff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      z-index: 1;
+      font-weight: 500;
+      font-size: 15px;
+    }
+    button:hover {
+      background-color: #efefef;
+      transition: 0.3s ease-in-out;
+    }
+    button::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: 6px;
+      background: linear-gradient(120deg, #6366f1, #5cf6ec, #ec4899, #f1ea63);
+      background-size: 300% 300%;
+      animation: borderGradient 4s ease infinite;
+      z-index: -1;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+    }
+
+    @keyframes borderGradient {
+      0% {
+        background-position: 0% 50%;
+      }
+      20% {
+        background-position: 50% 20%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+  }
+}
+
 /* Layout for control section */
 .control-box {
   display: flex;
