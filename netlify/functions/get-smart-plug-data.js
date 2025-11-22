@@ -610,7 +610,6 @@ function extractPowerData(methodName, response) {
         }
       }
     } else if (methodName === "Device Properties") {
-      console.log("Analyzing device properties/functions...");
       if (response.result && Array.isArray(response.result)) {
         console.log("Available property codes:", response.result);
       }

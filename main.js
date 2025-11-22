@@ -87,7 +87,6 @@ async function loadDevices() {
         const savedDevice = devices.find((d) => d.id === savedDeviceId);
         if (savedDevice) {
           deviceToSelect = savedDevice;
-          console.log("Loading saved device:", deviceToSelect.name);
         } else {
           console.log(
             "Saved device ID not found in device list, using first device"
@@ -117,10 +116,8 @@ async function changeDevice(deviceId) {
 
   // Save the selected device ID to localStorage
   saveSelectedDeviceId(deviceId);
-  console.log("Device changed and saved:", deviceId);
 
   const device = devices.find((d) => d.id === deviceId);
-  console.log("Device object found:", device);
 
   if (device) {
     updateDeviceInfo(device);
@@ -162,7 +159,6 @@ async function changeDevice(deviceId) {
     lastUpdateTimestamp = Date.now();
 
     // Load historical data for the new device
-    console.log("Fetching historical data for device:", currentDeviceId);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -174,22 +170,14 @@ async function changeDevice(deviceId) {
           startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
         });
 
-      console.log("Historical data URL:", historicalUrl);
-
       const response = await fetch(historicalUrl, {
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
-      console.log("Historical data response status:", response.status);
       if (response.ok) {
         const historicalDataArray = await response.json();
-        console.log(
-          "Historical data received:",
-          historicalDataArray.length,
-          "records"
-        );
 
         if (
           Array.isArray(historicalDataArray) &&
@@ -242,11 +230,7 @@ async function changeDevice(deviceId) {
 
       if (response.ok) {
         const yesterdayData = await response.json();
-        console.log(
-          "Yesterday's data received:",
-          yesterdayData.length,
-          "records"
-        );
+
         if (Array.isArray(yesterdayData) && yesterdayData.length > 0) {
           analytics.dailyData.yesterday = yesterdayData.map((reading) => ({
             time: new Date(reading.timestamp),
@@ -260,7 +244,6 @@ async function changeDevice(deviceId) {
     }
 
     // Fetch new device data with timeout
-    console.log("Fetching real-time data for device:", currentDeviceId);
     try {
       await fetchDataAndRender();
       window.realtimeInterval = setInterval(
@@ -298,8 +281,6 @@ async function getRealTimeSmartPlugData() {
     currentDeviceId ? `?deviceId=${currentDeviceId}` : ""
   }`;
 
-  console.log("Fetching data from:", apiEndpoint);
-
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -310,8 +291,6 @@ async function getRealTimeSmartPlugData() {
 
     clearTimeout(timeoutId);
 
-    console.log("Response status:", response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error("API error response:", errorText);
@@ -319,7 +298,6 @@ async function getRealTimeSmartPlugData() {
     }
 
     const data = await response.json();
-    console.log("Received data:", data);
 
     // Check if data is valid
     if (data.watts === 0) {
@@ -338,11 +316,11 @@ async function getRealTimeSmartPlugData() {
 }
 
 async function processAndRenderData(newData) {
-  console.log("Processing data:", {
-    watts: newData.watts,
-    deviceId: currentDeviceId,
-    timestamp: new Date(newData.timestamp).toLocaleString(),
-  });
+  // console.log("Processing data:", {
+  //   watts: newData.watts,
+  //   deviceId: currentDeviceId,
+  //   timestamp: new Date(newData.timestamp).toLocaleString(),
+  // });
 
   const now = new Date();
   const timeLabel = now.toLocaleTimeString();
@@ -358,13 +336,6 @@ async function processAndRenderData(newData) {
   if (kwh_increment < 0) {
     kwh_increment = 0;
   }
-
-  console.log("Energy calculation:", {
-    deltaMs,
-    powerInKW,
-    timeInHours,
-    kwh_increment,
-  });
 
   // Store the data in our database with retry logic
   const maxRetries = 3;
@@ -384,8 +355,6 @@ async function processAndRenderData(newData) {
         cost: newData.energy ? kwh_increment * newData.energy.ratePerKWh : 0,
       };
 
-      console.log("Storing data to database:", storeData);
-
       const response = await fetch("/.netlify/functions/store-energy-data", {
         method: "POST",
         headers: {
@@ -401,7 +370,6 @@ async function processAndRenderData(newData) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log("Data stored successfully");
       break; // Success, exit retry loop
     } catch (error) {
       retryCount++;

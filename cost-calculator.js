@@ -194,8 +194,6 @@ async function checkDatabaseData() {
         (sum, reading) => sum + (reading.cost || 0),
         0
       );
-      console.log("Total kWh today:", totalKWh);
-      console.log("Total cost today:", totalCost);
     }
   } catch (error) {
     console.error("Error checking database:", error);
